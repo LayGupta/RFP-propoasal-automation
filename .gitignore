@@ -1,0 +1,35 @@
+# ─── Environment Variables (SECRETS — never commit) ───
+.env
+.env.local
+.env.production
+
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# ─── Node ───
+node_modules/
+frontend/node_modules/
+
+# ─── IDE ───
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── Build Outputs ───
+frontend/dist/
+
+# ─── uv lockfile (large, auto-generated) ───
+backend/uv.lock
+
+# ─── Test artifacts ───
+backend/test_rfp_sample.txt
