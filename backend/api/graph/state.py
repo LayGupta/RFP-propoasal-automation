@@ -28,6 +28,9 @@ class RFPRequirement(TypedDict):
     voltage_rating: float
     # Insulation material type (e.g., "XLPE", "PVC", "EPR")
     insulation_type: str
+    # Conductor cross-sectional area in sq.mm (e.g., 1.5, 95.0) — triggers MTO if mismatched
+    cross_section_mm2: float
+
 
 
 # ─── SKU match result produced by the technical_matching_node ───

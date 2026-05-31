@@ -50,6 +50,7 @@ For each requirement, extract these exact fields:
 - "conductor_material": The conductor material (e.g., "copper", "aluminium"). Default to "copper" if not specified.
 - "voltage_rating": Rated voltage in volts as a float (e.g., 600.0, 1100.0). Extract from kV or V notations.
 - "insulation_type": Insulation material (e.g., "XLPE", "PVC", "EPR"). Default to "PVC" if not specified.
+- "cross_section_mm2": Conductor cross-sectional area in sq.mm as a float (e.g., 1.5, 2.5, 4.0, 6.0, 10.0, 16.0, 25.0, 35.0, 50.0, 70.0, 95.0, 120.0, 150.0, 185.0, 240.0, 300.0, 400.0). Extract from sq.mm or mm2 notations. Default to 1.5 if not specified.
 
 Also extract document-level metadata as a separate JSON object with keys:
 - "client_name": Name of the requesting organization (or "Unknown" if not found).
@@ -96,6 +97,7 @@ RFP DOCUMENT TEXT:
             "conductor_material": str(item.get("conductor_material", "copper")),
             "voltage_rating": float(item.get("voltage_rating", 0.0)),
             "insulation_type": str(item.get("insulation_type", "PVC")),
+            "cross_section_mm2": float(item.get("cross_section_mm2", 1.5)),
         }
         extracted_requirements.append(requirement)
 
@@ -123,45 +125,56 @@ def _compute_match_score(requirement: dict, product: dict) -> float:
     """Compute a weighted similarity score (0-100) between a requirement and a catalog product.
 
     Scoring breakdown:
-      - Conductor material: 25% (exact match = 100%, mismatch = 0%)
-      - Insulation type:    25% (exact = 100%, XLPE↔PVC partial = 40%, else 0%)
-      - Voltage rating:     25% (product ≥ requirement = 100%, below = proportional)
-      - Core count:         25% (exact = 100%, ±1 = 50%, else 0%)
+      - Conductor material: 20% (exact match = 100%, mismatch = 0%)
+      - Insulation type:    20% (exact = 100%, XLPE↔PVC partial = 40%, else 0%)
+      - Voltage rating:     20% (product ≥ requirement = 100%, below = proportional)
+      - Core count:         20% (exact = 100%, ±1 = 50%, else 0%)
+      - Cross section:      20% (exact = 100%, mismatched = proportional ratio)
     """
     score = 0.0
 
-    # Conductor material (25%)
+    # Conductor material (20%)
     req_material = requirement.get("conductor_material", "").lower().strip()
     prod_material = product.get("conductor_material", "").lower().strip()
     if req_material == prod_material:
-        score += 25.0
+        score += 20.0
 
-    # Insulation type (25%)
+    # Insulation type (20%)
     req_insulation = requirement.get("insulation_type", "").upper().strip()
     prod_insulation = product.get("insulation_type", "").upper().strip()
     if req_insulation == prod_insulation:
-        score += 25.0
+        score += 20.0
     elif {req_insulation, prod_insulation} == {"XLPE", "PVC"}:
         # Partial match — same family but different performance tier
-        score += 10.0
+        score += 8.0
 
-    # Voltage rating (25%)
+    # Voltage rating (20%)
     req_voltage = float(requirement.get("voltage_rating", 0))
     prod_voltage = float(product.get("voltage_rating", 0))
     if prod_voltage >= req_voltage and req_voltage > 0:
-        score += 25.0
+        score += 20.0
     elif req_voltage > 0:
         # Proportional score if product voltage is below requirement
         ratio = prod_voltage / req_voltage
-        score += 25.0 * min(ratio, 1.0)
+        score += 20.0 * min(ratio, 1.0)
 
-    # Core count (25%)
+    # Core count (20%)
     req_cores = int(requirement.get("core_count", 1))
     prod_cores = int(product.get("core_count", 1))
     if req_cores == prod_cores:
-        score += 25.0
+        score += 20.0
     elif abs(req_cores - prod_cores) == 1:
-        score += 12.5
+        score += 10.0
+
+    # Cross section (20%)
+    req_size = float(requirement.get("cross_section_mm2", 0))
+    prod_size = float(product.get("cross_section_mm2", 0))
+    if req_size == prod_size and req_size > 0:
+        score += 20.0
+    elif req_size > 0 and prod_size > 0:
+        # Proportional score for cross-section discrepancy
+        ratio = min(req_size, prod_size) / max(req_size, prod_size)
+        score += 20.0 * ratio
 
     return round(score, 1)
 
@@ -190,6 +203,11 @@ def _build_gap_notes(requirement: dict, product: dict, score: float) -> str:
     if req_cores != prod_cores:
         gaps.append(f"Core count: requires {req_cores}C, catalog has {prod_cores}C")
 
+    req_size = float(requirement.get("cross_section_mm2", 0))
+    prod_size = float(product.get("cross_section_mm2", 0))
+    if req_size != prod_size and req_size > 0:
+        gaps.append(f"Cross-section gap: requires {req_size} mm², catalog has {prod_size} mm² (delta: {abs(req_size - prod_size)} mm²)")
+
     if not gaps:
         return f"Direct catalog match ({score:.1f}% confidence). No modifications required."
 
@@ -197,7 +215,7 @@ def _build_gap_notes(requirement: dict, product: dict, score: float) -> str:
 
 
 def technical_matching_node(state: RFPState) -> dict:
-    """Match each requirement against the real product catalog using weighted similarity scoring."""
+    """Match each requirement against the real product catalog using weighted similarity scoring and engineering overrides."""
 
     # Step 1: Fetch the full product catalog from Supabase
     catalog_result = supabase_client.table("products").select("*").execute()
@@ -222,7 +240,24 @@ def technical_matching_node(state: RFPState) -> dict:
 
         # Step 3: Build the SKU recommendation from the best match
         if best_product:
-            is_mto = best_score < MTO_MATCH_THRESHOLD
+            req_voltage = float(requirement.get("voltage_rating", 0))
+            prod_voltage = float(best_product.get("voltage_rating", 0))
+            req_insulation = requirement.get("insulation_type", "").upper().strip()
+            prod_insulation = best_product.get("insulation_type", "").upper().strip()
+            req_size = float(requirement.get("cross_section_mm2", 0))
+            prod_size = float(best_product.get("cross_section_mm2", 0))
+
+            # Hard engineering rules for MTO override:
+            # - Score is below threshold (75%)
+            # - Catalog product's voltage rating is lower than required voltage
+            # - Insulation is custom/special (EPR, LSZH) and doesn't match catalog product's insulation
+            # - Cross-section area does not match catalog product (requires different wire extrusion)
+            is_mto = (
+                best_score < MTO_MATCH_THRESHOLD or
+                prod_voltage < req_voltage or
+                (req_insulation != prod_insulation and req_insulation in ("LSZH", "EPR")) or
+                (req_size != prod_size and req_size > 0)
+            )
             gap_notes = _build_gap_notes(requirement, best_product, best_score)
 
             recommendation: SKURecommendation = {

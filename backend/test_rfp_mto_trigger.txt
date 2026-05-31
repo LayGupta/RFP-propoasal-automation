@@ -1,0 +1,77 @@
+REQUEST FOR PROPOSAL (RFP)
+==========================================================
+
+Client: Rajasthan State Power Distribution Corporation Ltd (RSPDC)
+Project: 33kV Substation Upgrade & Feeder Cable Replacement
+RFP Reference: RSPDC/ELEC/2025-26/PO-4487
+Date of Issue: 30 May 2025
+Submission Deadline: 15 June 2025
+Delivery Location: Jaipur Central Substation, Mansarovar, Rajasthan
+
+==========================================================
+SCOPE OF WORK
+==========================================================
+
+RSPDC invites sealed bids from qualified cable manufacturers
+for the supply of power cables for the 33kV substation
+modernisation project. The scope includes low-voltage internal
+wiring, medium-voltage feeder cables, and high-voltage
+underground transmission cables.
+
+==========================================================
+TECHNICAL SPECIFICATIONS — LINE ITEMS
+==========================================================
+
+LINE ITEM 1: Internal Panel Wiring
+  - 3 core, 4 sq.mm, Copper conductor, XLPE insulated
+  - 1100V grade, quantity: 2000 meters
+  - Application: LT panel internal connections
+
+LINE ITEM 2: LT Distribution Feeder Cable
+  - 4 core, 25 sq.mm, Copper conductor, PVC insulated
+  - 1100V grade, SWA (Steel Wire Armoured), quantity: 3500 meters
+  - Application: Underground LT distribution from transformer
+
+LINE ITEM 3: MV Feeder Cable (CUSTOM REQUIREMENT)
+  - 3 core, 120 sq.mm, Copper conductor, EPR insulated
+  - 3300V grade, SWA armoured, quantity: 1500 meters
+  - Application: Medium voltage feeder from 33/11kV transformer
+  - Must comply with IS 7098 Part 2 for MV cables
+
+LINE ITEM 4: HV Underground Transmission Cable (CUSTOM REQUIREMENT)
+  - 1 core, 400 sq.mm, Aluminium conductor, XLPE insulated
+  - 11000V (11kV) grade, quantity: 800 meters
+  - Application: HV underground transmission from grid interconnect
+  - Must comply with IEC 60502-2 and IS 7098 Part 2 for HT cables
+  - Requires partial discharge testing at 2.5 U0
+
+LINE ITEM 5: Control & Instrumentation Cable (CUSTOM REQUIREMENT)
+  - 12 core, 1.5 sq.mm, Copper conductor, LSZH insulated
+  - 600V grade, overall screened with aluminium-mylar tape
+  - Quantity: 1200 meters
+  - Application: SCADA control signalling between relay panels
+  - Must be fire-retardant per IEC 60332-3 Category C
+
+LINE ITEM 6: Aluminium Feeder Cable
+  - 3 core, 240 sq.mm, Aluminium conductor, XLPE insulated
+  - 1100V grade, SWA armoured, quantity: 4000 meters
+  - Application: Main LT distribution backbone
+
+==========================================================
+COMMERCIAL TERMS
+==========================================================
+- Payment: 30% advance, 60% on delivery, 10% after commissioning
+- Warranty: 5 years from date of commissioning
+- Liquidated Damages: 0.5% per week of delay, max 10%
+- Delivery: Within 8 weeks of purchase order
+- Inspection: Third-party inspection at factory by RSPDC nominee
+
+==========================================================
+COMPLIANCE REQUIREMENTS
+==========================================================
+- All cables must comply with relevant IS/IEC standards
+- Type test reports from NABL accredited laboratory
+- Manufacturer must hold valid ISO 9001:2015 and ISO 14001
+- BIS license for relevant cable types mandatory
+
+==========================================================
