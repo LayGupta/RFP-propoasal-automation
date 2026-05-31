@@ -17,6 +17,8 @@ export default function MtoModal({
   onVolatilityChange,
   onResumeComplete,
   onError,
+  userEmail,
+  sessionToken,
 }) {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -29,11 +31,15 @@ export default function MtoModal({
     try {
       const response = await fetch('/api/process-rfp/resume', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}),
+        },
         body: JSON.stringify({
           thread_id: threadId,
           adjusted_volatility: volatilityMultiplier,
           notes: notes || 'Approved without additional notes.',
+          approved_by: userEmail || null,
         }),
       });
 
@@ -49,7 +55,7 @@ export default function MtoModal({
     } finally {
       setIsSubmitting(false);
     }
-  }, [threadId, volatilityMultiplier, notes, onResumeComplete, onError]);
+  }, [threadId, volatilityMultiplier, notes, onResumeComplete, onError, userEmail, sessionToken]);
 
   // Separate MTO and standard SKUs for display
   const mtoSkus = matchedSkus.filter((s) => s.is_custom_mto);
@@ -211,6 +217,11 @@ export default function MtoModal({
 
         {/* ── Modal Footer ── */}
         <div className="mto-modal__footer">
+          {userEmail && (
+            <span style={{ marginRight: 'auto', fontSize: '0.78rem', color: 'var(--zinc-500)', fontFamily: 'var(--font-mono)' }}>
+              Approving as: {userEmail}
+            </span>
+          )}
           <button
             className="btn btn--success"
             onClick={handleSubmitReview}

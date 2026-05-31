@@ -934,3 +934,219 @@ body {
     display: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NEW COMPONENT STYLES — Auth, History, Scout, Opportunity Cards
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Login Page ─── */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--zinc-950);
+  padding: 24px;
+}
+
+.login-card {
+  background: var(--zinc-900);
+  border: 1px solid var(--zinc-800);
+  border-radius: var(--radius-xl);
+  padding: 40px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp var(--transition-slow) ease-out;
+}
+
+.login-card__header {
+  text-align: center;
+  margin-bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.login-card__title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--zinc-50);
+  letter-spacing: -0.02em;
+}
+
+.login-card__subtitle {
+  font-size: 0.85rem;
+  color: var(--zinc-500);
+}
+
+.login-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-card__alert {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  margin-bottom: 8px;
+}
+
+.login-card__alert--error {
+  background: var(--accent-red-glow);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: var(--accent-red);
+}
+
+.login-card__alert--success {
+  background: var(--accent-emerald-glow);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  color: var(--accent-emerald);
+}
+
+.login-card__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--zinc-800);
+}
+
+/* ─── History Sidebar ─── */
+.history-sidebar__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.history-sidebar__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-sans);
+  transition: all var(--transition-fast);
+  width: 100%;
+  color: var(--zinc-300);
+}
+
+.history-sidebar__item:hover {
+  background: var(--zinc-800);
+  border-color: var(--zinc-700);
+}
+
+.history-sidebar__item--active {
+  background: var(--accent-blue-glow);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.history-sidebar__item-title {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--zinc-200);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-sidebar__item-meta {
+  display: flex;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: var(--zinc-500);
+  font-family: var(--font-mono);
+}
+
+.history-sidebar__new-btn {
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-emerald));
+  border: none;
+}
+
+.history-sidebar__new-btn:hover {
+  opacity: 0.9;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.3);
+}
+
+/* ─── Scout Search Bar ─── */
+.scout-bar {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.scout-bar__input {
+  flex: 1;
+}
+
+/* ─── Opportunity Cards ─── */
+.opportunity-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.opportunity-card {
+  background: var(--zinc-850);
+  border: 1px solid var(--zinc-700);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.opportunity-card:hover {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.08);
+}
+
+.opportunity-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.opportunity-card__title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--zinc-100);
+  line-height: 1.4;
+}
+
+.opportunity-card__link {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  text-decoration: none;
+}
+
+.opportunity-card__summary {
+  font-size: 0.8rem;
+  color: var(--zinc-400);
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.opportunity-card__footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.opportunity-card__authority {
+  font-size: 0.75rem;
+  color: var(--zinc-500);
+  font-family: var(--font-mono);
+}

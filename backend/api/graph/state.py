@@ -68,3 +68,8 @@ class RFPState(TypedDict):
     human_override_notes: Optional[str]
     # The final compiled markdown proposal document combining all analysis sections
     final_proposal_markdown: str
+    # Email of the manager who approved the MTO review (injected from JWT via /resume endpoint)
+    approved_by: Optional[str]
+    # Supabase user ID for proposal history tracking (injected from JWT)
+    user_id: Optional[str]
+

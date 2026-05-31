@@ -16,6 +16,12 @@ export default function BidManager({ onStartResponse, onError, volatilityMultipl
   const [processingStage, setProcessingStage] = useState(0);
   const fileInputRef = useRef(null);
 
+  // Tender Scout state
+  const [scoutQuery, setScoutQuery] = useState('');
+  const [scoutResults, setScoutResults] = useState([]);
+  const [isScoutLoading, setIsScoutLoading] = useState(false);
+  const [scoutError, setScoutError] = useState('');
+
   // Generate a UUID v4 for unique session tracking
   const generateThreadId = useCallback(() => {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -139,8 +145,106 @@ export default function BidManager({ onStartResponse, onError, volatilityMultipl
     'Compliance Router evaluating MTO thresholds...',
   ];
 
+  // Tender scout search handler
+  const handleScoutSearch = useCallback(async () => {
+    if (!scoutQuery.trim()) return;
+    setIsScoutLoading(true);
+    setScoutError('');
+    setScoutResults([]);
+
+    try {
+      const response = await fetch('/api/scout-tenders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: scoutQuery }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Scout failed' }));
+        throw new Error(errorData.detail || `Server responded with ${response.status}`);
+      }
+
+      const data = await response.json();
+      setScoutResults(data.opportunities || []);
+    } catch (err) {
+      setScoutError(err.message || 'Failed to search for tenders.');
+    } finally {
+      setIsScoutLoading(false);
+    }
+  }, [scoutQuery]);
+
   return (
     <>
+      {/* ═══ Tender Discovery Scout ═══ */}
+      <div className="card">
+        <div className="card__header">
+          <span className="card__title">🌐 Auto-Scout Tenders</span>
+          <span className="card__badge card__badge--blue">TAVILY AI</span>
+        </div>
+        <div className="card__body">
+          <div className="scout-bar">
+            <input
+              type="text"
+              className="form-input scout-bar__input"
+              placeholder='Search for tenders, e.g. "1100V XLPE cables RFP India"'
+              value={scoutQuery}
+              onChange={(e) => setScoutQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleScoutSearch()}
+            />
+            <button
+              className="btn btn--primary"
+              onClick={handleScoutSearch}
+              disabled={isScoutLoading || !scoutQuery.trim()}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              {isScoutLoading ? (
+                <>
+                  <span className="processing-spinner" style={{ width: 14, height: 14, borderWidth: 2, margin: 0 }} />
+                  Searching...
+                </>
+              ) : (
+                '🔍 Scout'
+              )}
+            </button>
+          </div>
+
+          {/* Scout Error */}
+          {scoutError && (
+            <div style={{ marginTop: '10px', padding: '10px 14px', background: 'var(--accent-red-glow)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-red)', fontSize: '0.82rem' }}>
+              ⚠ {scoutError}
+            </div>
+          )}
+
+          {/* Scout Results — Opportunity Cards */}
+          {scoutResults.length > 0 && (
+            <div className="opportunity-cards">
+              {scoutResults.map((opp, i) => (
+                <div key={i} className="opportunity-card">
+                  <div className="opportunity-card__header">
+                    <span className="opportunity-card__title">{opp.tender_title}</span>
+                    <a
+                      href={opp.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn--ghost opportunity-card__link"
+                    >
+                      🔗 View Source
+                    </a>
+                  </div>
+                  <p className="opportunity-card__summary">{opp.summary}</p>
+                  <div className="opportunity-card__footer">
+                    <span className="opportunity-card__authority">
+                      🏛 {opp.issuing_authority}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ═══ RFP Document Ingestion ═══ */}
       <div className="card">
         <div className="card__header">
           <span className="card__title">📄 RFP Document Ingestion</span>

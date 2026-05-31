@@ -8,6 +8,24 @@ Two singleton exports:
 Both are initialized at module import time and validated against environment variables.
 If any required variable is missing, a RuntimeError is raised immediately with a
 diagnostic message to prevent silent failures in serverless cold starts.
+
+─────────────────────────────────────────────────────────────────────────────────
+MIGRATION: Run this SQL in Supabase SQL Editor (Dashboard → SQL Editor → New Query)
+to create the proposals history table:
+
+    CREATE TABLE IF NOT EXISTS proposals (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        user_id UUID NOT NULL,
+        thread_id TEXT NOT NULL,
+        project_name TEXT NOT NULL DEFAULT 'Untitled Project',
+        final_markdown TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_proposals_user_id ON proposals(user_id);
+    CREATE INDEX IF NOT EXISTS idx_proposals_created_at ON proposals(created_at DESC);
+
+─────────────────────────────────────────────────────────────────────────────────
 """
 
 import os

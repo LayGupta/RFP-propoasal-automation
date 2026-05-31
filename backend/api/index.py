@@ -1,18 +1,20 @@
 """
 index.py — FastAPI Vercel Serverless Gateway Interface
 
-Exposes two primary API endpoints for the RFP processing workflow:
+Exposes API endpoints for the RFP processing workflow:
   1. POST /api/process-rfp/start  — Upload RFP document, extract text, run graph until interrupt
   2. POST /api/process-rfp/resume — Resume paused workflow with human review inputs
-
-The /start endpoint accepts multipart/form-data (file + thread_id) and performs
-server-side PDF/DOCX/TXT text extraction before feeding into the LangGraph workflow.
+  3. GET  /api/history             — Fetch saved proposals for the authenticated user
+  4. POST /api/scout-tenders       — Agentic web search for tender discovery via Tavily
 
 The FastAPI `app` instance at module scope is auto-detected by Vercel's @vercel/python builder.
 """
 
+import os
+import json
 from io import BytesIO
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from typing import Optional
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import pdfplumber
@@ -20,6 +22,8 @@ from docx import Document
 from langgraph.types import Command
 
 from api.graph.workflow import rfp_workflow
+from api.auth import get_current_user, get_optional_user, UserClaims
+from api.database.client import supabase_client
 
 
 # ─── FastAPI application instance ───
@@ -51,6 +55,7 @@ class ResumeRequest(BaseModel):
     thread_id: str = Field(..., description="The thread_id used when starting the workflow")
     adjusted_volatility: float = Field(..., description="Updated commodity volatility multiplier (e.g., 1.15)")
     notes: str = Field(..., description="Human reviewer's override notes and comments")
+    approved_by: Optional[str] = Field(None, description="Email of the manager who approved the review")
 
 
 class StartResponse(BaseModel):
@@ -158,7 +163,7 @@ async def start_rfp_processing(
     # Step 4: Initialize the graph state with extracted text and default values
     initial_state = {
         "raw_rfp_content": raw_rfp_text,
-        "metadata": {},
+        "metadata": {"thread_id": thread_id},
         "extracted_requirements": [],
         "matched_skus": [],
         "mto_blueprints": [],
@@ -166,6 +171,8 @@ async def start_rfp_processing(
         "commodity_volatility_multiplier": 1.0,
         "human_override_notes": None,
         "final_proposal_markdown": "",
+        "approved_by": None,
+        "user_id": None,
     }
 
     # Step 5: Stream the workflow and capture interrupt or completion events
@@ -226,6 +233,8 @@ def resume_rfp_processing(request: ResumeRequest) -> FinalResponse:
         "human_override_notes": request.notes,
         "commodity_volatility_multiplier": request.adjusted_volatility,
     }
+    if request.approved_by:
+        resume_value["approved_by"] = request.approved_by
 
     # Step 3: Resume the workflow by passing Command(resume=...) instead of initial state
     # This wakes the graph from the interrupt point and continues downstream nodes
@@ -255,6 +264,103 @@ def resume_rfp_processing(request: ResumeRequest) -> FinalResponse:
 def health_check() -> dict[str, str]:
     """Simple health check to verify the API is running and responsive."""
     return {"status": "healthy", "service": "fmcg-rfp-api"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENDPOINT 3: Proposal History
+# Fetches all saved proposals belonging to the authenticated user.
+# ═══════════════════════════════════════════════════════════════════════════════
+@app.get("/api/history")
+async def get_proposal_history(
+    user: UserClaims = Depends(get_current_user),
+) -> list[dict]:
+    """Retrieve all saved proposals for the authenticated user, ordered by creation date."""
+    try:
+        result = (
+            supabase_client.table("proposals")
+            .select("id, thread_id, project_name, final_markdown, created_at")
+            .eq("user_id", user.user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch proposal history: {str(e)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENDPOINT 4: Agentic Tender Discovery via Tavily
+# Uses Tavily web search + ChatGroq to find active infrastructure RFPs.
+# ═══════════════════════════════════════════════════════════════════════════════
+class ScoutRequest(BaseModel):
+    """Request body for tender scouting."""
+    query: str = Field(..., description="Search query for finding tenders (e.g., '1100V XLPE cables RFP India')")
+
+
+@app.post("/api/scout-tenders")
+async def scout_tenders(request: ScoutRequest) -> dict:
+    """Search the web for active infrastructure RFPs/tenders using Tavily and compile results with ChatGroq."""
+    from langchain_groq import ChatGroq
+    from langchain_community.tools.tavily_search import TavilySearchResults
+
+    tavily_key = os.environ.get("TAVILY_API_KEY")
+    if not tavily_key:
+        raise HTTPException(
+            status_code=500,
+            detail="TAVILY_API_KEY not configured. Set it in your .env file.",
+        )
+
+    try:
+        # Step 1: Execute Tavily web search with the user's query
+        search_tool = TavilySearchResults(
+            max_results=8,
+            search_depth="advanced",
+        )
+        raw_results = search_tool.invoke(request.query)
+
+        # Step 2: Use ChatGroq to analyze and structure the search results
+        scout_llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
+
+        structuring_prompt = f"""You are a procurement intelligence analyst. Analyze the following web search results about infrastructure tenders and RFPs.
+
+Search Results:
+{json.dumps(raw_results, indent=2)}
+
+Extract and return a JSON array of tender opportunities. Each object must have exactly these fields:
+- "tender_title": string (the title of the tender/RFP)
+- "summary": string (2-3 sentence summary of what the tender requires)
+- "issuing_authority": string (the organization issuing the tender)
+- "source_url": string (the URL where this tender was found)
+
+If a field cannot be determined, use "Not specified".
+Return ONLY the raw JSON array, no markdown formatting or code blocks."""
+
+        response = scout_llm.invoke(structuring_prompt)
+
+        # Step 3: Parse the LLM response into structured JSON
+        try:
+            # Try to extract JSON from the response
+            content = response.content.strip()
+            # Remove potential markdown code block wrapping
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            opportunities = json.loads(content)
+        except (json.JSONDecodeError, IndexError):
+            # Fallback: construct opportunities from raw Tavily results
+            opportunities = []
+            for r in raw_results[:6]:
+                if isinstance(r, dict):
+                    opportunities.append({
+                        "tender_title": r.get("title", r.get("url", "Unknown")),
+                        "summary": r.get("content", "No summary available.")[:200],
+                        "issuing_authority": "Not specified",
+                        "source_url": r.get("url", "#"),
+                    })
+
+        return {"opportunities": opportunities}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tender scouting failed: {str(e)}")
 
 
 # ─── Local development server ───

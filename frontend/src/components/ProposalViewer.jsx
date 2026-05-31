@@ -90,6 +90,19 @@ export default function ProposalViewer({ markdown, threadId, onReset }) {
     }
   }, [markdown]);
 
+  // Download the raw markdown as a .txt file using Blob + createObjectURL
+  const handleDownload = useCallback(() => {
+    const blob = new Blob([markdown], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `RFP_Proposal_${threadId ? threadId.slice(0, 8) : 'document'}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [markdown, threadId]);
+
   if (!markdown) {
     return (
       <div className="card">
@@ -119,6 +132,9 @@ export default function ProposalViewer({ markdown, threadId, onReset }) {
           )}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn--ghost" style={{ padding: '6px 14px', fontSize: '0.78rem' }} onClick={handleDownload}>
+            📥 Download .TXT
+          </button>
           <button className="btn btn--ghost" style={{ padding: '6px 14px', fontSize: '0.78rem' }} onClick={handleCopy}>
             📋 Copy Markdown
           </button>

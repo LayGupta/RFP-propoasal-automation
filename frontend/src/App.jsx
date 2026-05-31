@@ -1,14 +1,17 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { supabase } from './supabaseClient';
+import LoginPage from './components/LoginPage';
 import BidManager from './components/BidManager';
 import MtoModal from './components/MtoModal';
 import VolatilitySlider from './components/VolatilitySlider';
 import ProposalViewer from './components/ProposalViewer';
+import HistorySidebar from './components/HistorySidebar';
 
 /**
  * App — Primary Full-Screen Workspace Layout
  *
- * Two-column operational grid:
- *   Left Column (Sidebar): Volatility slider + system status panels
+ * Authentication-gated two-column operational grid:
+ *   Left Column (Sidebar): History sidebar + Volatility slider + system status panels
  *   Right Column (Main Panel): Dynamic multi-stage dashboard that toggles
  *     between file ingestion (BidManager) and finalized proposal (ProposalViewer)
  *
@@ -25,7 +28,11 @@ const STATES = {
 };
 
 export default function App() {
-  // ── Global State ──
+  // ── Auth State ──
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // ── Global Workflow State ──
   const [appState, setAppState] = useState(STATES.IDLE);
   const [threadId, setThreadId] = useState(null);
   const [volatilityMultiplier, setVolatilityMultiplier] = useState(1.0);
@@ -33,6 +40,33 @@ export default function App() {
   const [matchedSkus, setMatchedSkus] = useState([]);
   const [finalProposal, setFinalProposal] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // ── Auth Session Management ──
+  useEffect(() => {
+    // Check for existing session on mount
+    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      setSession(existingSession);
+      setAuthLoading(false);
+    });
+
+    // Subscribe to auth state changes (login/logout/token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => {
+        setSession(newSession);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Handle logout
+  const handleLogout = useCallback(async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    setAppState(STATES.IDLE);
+    setThreadId(null);
+    setFinalProposal('');
+  }, []);
 
   // Status display label mapping
   const statusLabels = {
@@ -94,6 +128,37 @@ export default function App() {
     setVolatilityMultiplier(1.0);
   }, []);
 
+  // Load a historical proposal into the viewer
+  const handleSelectProposal = useCallback((proposal) => {
+    setThreadId(proposal.thread_id);
+    setFinalProposal(proposal.final_markdown);
+    setAppState(STATES.COMPLETED);
+    setErrorMessage('');
+    setBlueprintPayload([]);
+    setMatchedSkus([]);
+  }, []);
+
+  // ── Auth Loading State ──
+  if (authLoading) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: 'var(--zinc-950)',
+      }}>
+        <div className="processing-spinner" />
+      </div>
+    );
+  }
+
+  // ── Login Gate ── If no session, show the login page
+  if (!session) {
+    return <LoginPage />;
+  }
+
+  // Extract user info from the session
+  const userEmail = session.user?.email || '';
+  const sessionToken = session.access_token || '';
+
   return (
     <div className="app-layout">
       {/* ═══ Header Bar ═══ */}
@@ -110,11 +175,30 @@ export default function App() {
               │ {threadId.slice(0, 8)}
             </span>
           )}
+          <span style={{ color: 'var(--zinc-700)', margin: '0 8px' }}>│</span>
+          <span style={{ color: 'var(--zinc-400)', fontSize: '0.78rem' }}>
+            {userEmail}
+          </span>
+          <button
+            className="btn btn--ghost"
+            style={{ padding: '4px 10px', fontSize: '0.72rem', marginLeft: '6px' }}
+            onClick={handleLogout}
+          >
+            Sign Out
+          </button>
         </div>
       </header>
 
       {/* ═══ Sidebar ═══ */}
       <aside className="sidebar">
+        {/* Proposal History (ChatGPT-style) */}
+        <HistorySidebar
+          session={session}
+          onSelectProposal={handleSelectProposal}
+          onNewAnalysis={handleReset}
+          activeThreadId={threadId}
+        />
+
         {/* Volatility Slider Control */}
         <VolatilitySlider
           value={volatilityMultiplier}
@@ -273,6 +357,8 @@ export default function App() {
           onVolatilityChange={setVolatilityMultiplier}
           onResumeComplete={handleResumeComplete}
           onError={handleError}
+          userEmail={userEmail}
+          sessionToken={sessionToken}
         />
       )}
     </div>
