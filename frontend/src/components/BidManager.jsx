@@ -9,7 +9,7 @@ import { useState, useRef, useCallback } from 'react';
  * async POST to /api/process-rfp/start. Renders a high-visibility
  * processing overlay during the network request.
  */
-export default function BidManager({ onStartResponse, onError, volatilityMultiplier }) {
+export default function BidManager({ onStartResponse, onError, volatilityMultiplier, token }) {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -98,8 +98,12 @@ export default function BidManager({ onStartResponse, onError, volatilityMultipl
       const stageTimer3 = setTimeout(() => setProcessingStage(3), 7000);
 
       // Execute the async POST to the backend start endpoint
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const response = await fetch('/api/process-rfp/start', {
         method: 'POST',
+        headers,
         body: formData,
       });
 
@@ -128,7 +132,7 @@ export default function BidManager({ onStartResponse, onError, volatilityMultipl
       setIsProcessing(false);
       setProcessingStage(0);
     }
-  }, [selectedFile, generateThreadId, onStartResponse, onError, volatilityMultiplier]);
+  }, [selectedFile, generateThreadId, onStartResponse, onError, volatilityMultiplier, token]);
 
   // Format file size for display
   const formatFileSize = (bytes) => {

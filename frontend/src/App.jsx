@@ -322,6 +322,7 @@ export default function App() {
                 onStartResponse={handleStartResponse}
                 onError={handleError}
                 volatilityMultiplier={volatilityMultiplier}
+                token={sessionToken}
               />
             )}
 

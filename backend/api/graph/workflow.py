@@ -522,21 +522,6 @@ def output_compiler_node(state: RFPState) -> dict:
     # Join all sections into the final markdown string
     final_markdown = "\n".join(sections)
 
-    # ── Persist proposal to Supabase proposals table for history tracking ──
-    user_id = state.get("user_id")
-    thread_id = state.get("metadata", {}).get("thread_id", "unknown")
-    project_name = state.get("metadata", {}).get("project_name", "Untitled Project")
-    try:
-        supabase_client.table("proposals").insert({
-            "user_id": user_id or "00000000-0000-0000-0000-000000000000",
-            "thread_id": thread_id,
-            "project_name": project_name,
-            "final_markdown": final_markdown,
-        }).execute()
-    except Exception as e:
-        # Non-fatal: don't crash the workflow if history save fails
-        print(f"[WARNING] Failed to save proposal to history: {e}")
-
     return {"final_proposal_markdown": final_markdown}
 
 

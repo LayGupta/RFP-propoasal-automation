@@ -152,6 +152,7 @@ def extract_text_from_upload(file_bytes: bytes, filename: str) -> str:
 async def start_rfp_processing(
     file: UploadFile = File(..., description="RFP document file (PDF, DOCX, or TXT)"),
     thread_id: str = Form(..., description="Unique thread identifier for this workflow run"),
+    user: UserClaims | None = Depends(get_optional_user),
 ) -> StartResponse:
     """Upload an RFP document and start the multi-agent processing workflow.
 
@@ -226,6 +227,21 @@ async def start_rfp_processing(
         )
     else:
         # Workflow completed without interrupt — all items were standard catalog matches
+        # Save proposal to database for history
+        if final_markdown:
+            try:
+                save_data = {
+                    "thread_id": thread_id,
+                    "project_name": file.filename or "Untitled Project",
+                    "final_markdown": final_markdown,
+                }
+                if user:
+                    save_data["user_id"] = user.user_id
+                supabase_client.table("proposals").insert(save_data).execute()
+            except Exception as e:
+                import logging
+                logging.warning(f"Failed to save proposal to history: {e}")
+
         return StartResponse(
             status="COMPLETED_NO_MTO",
             thread_id=thread_id,
@@ -280,6 +296,23 @@ def resume_rfp_processing(request: ResumeRequest) -> FinalResponse:
             status_code=500,
             detail="Workflow completed but no final proposal was generated. This may indicate the thread_id does not match a paused workflow.",
         )
+
+    # Save proposal to database for history
+    try:
+        save_data = {
+            "thread_id": request.thread_id,
+            "project_name": "MTO Review Project",
+            "final_markdown": final_markdown,
+        }
+        if request.approved_by:
+            # Look up user_id from email
+            user_result = supabase_client.table("users").select("id").eq("email", request.approved_by).limit(1).execute()
+            if user_result.data:
+                save_data["user_id"] = user_result.data[0]["id"]
+        supabase_client.table("proposals").insert(save_data).execute()
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to save proposal to history: {e}")
 
     return FinalResponse(
         status="COMPLETED",
