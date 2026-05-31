@@ -88,16 +88,31 @@ export default function HistorySidebar({ token, onSelectProposal, onNewAnalysis,
         {proposals.map((proposal) => (
           <button
             key={proposal.id}
-            className={`history-sidebar__item ${proposal.thread_id === activeThreadId ? 'history-sidebar__item--active' : ''}`}
+            className={`sidebar__history-item ${proposal.thread_id === activeThreadId ? 'sidebar__history-item--active' : ''}`}
             onClick={() => onSelectProposal(proposal)}
+            style={proposal.thread_id === activeThreadId ? {
+              background: 'var(--accent-blue-glow)',
+              borderColor: 'rgba(59,130,246,0.2)',
+              color: 'var(--zinc-200)',
+            } : {}}
           >
-            <div className="history-sidebar__item-title">
-              {proposal.project_name || 'Untitled Project'}
-            </div>
-            <div className="history-sidebar__item-meta">
-              <span>{formatDate(proposal.created_at)}</span>
-              <span style={{ color: 'var(--zinc-600)' }}>•</span>
-              <span>{proposal.thread_id?.slice(0, 8)}</span>
+            <div className="sidebar__history-dot" />
+            <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+              <div style={{
+                fontSize: '0.78rem',
+                fontWeight: 500,
+                color: 'var(--zinc-300)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}>
+                {proposal.project_name || 'Untitled Project'}
+              </div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--zinc-600)', display: 'flex', gap: '6px', marginTop: '2px' }}>
+                <span>{formatDate(proposal.created_at)}</span>
+                <span>•</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }}>{proposal.thread_id?.slice(0, 8)}</span>
+              </div>
             </div>
           </button>
         ))}

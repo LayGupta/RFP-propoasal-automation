@@ -1,11 +1,13 @@
 """
 scheduler.py — Proactive Cron-Based Tender Scouting with Email Alerts
 
-Uses APScheduler to run a background job that:
-  1. Searches for tenders via Tavily web search
-  2. Uses ChatGroq to structure and score results
-  3. Sends email alerts via Resend when high-relevance tenders are found
-  4. Logs all scout runs to the scout_logs table
+Scans across ALL product categories in the inventory database:
+  1. Fetches distinct product types from the products table
+  2. Builds targeted search queries for each category
+  3. Searches for tenders via Tavily web search
+  4. Uses ChatGroq to structure and score results
+  5. Sends email alerts via Resend when high-relevance tenders are found
+  6. Logs all scout runs to the scout_logs table
 
 Default schedule: Daily at 6:00 AM IST (00:30 UTC)
 """
@@ -26,16 +28,51 @@ scheduler = BackgroundScheduler()
 _scheduler_started = False
 
 
-def _get_scout_config() -> dict:
-    """Read scout configuration from environment."""
-    return {
-        "query": os.environ.get("SCOUT_QUERY", "1100V XLPE cable tender RFP India"),
-        "alert_email": os.environ.get("ALERT_EMAIL", ""),
-        "resend_key": os.environ.get("RESEND_API_KEY", ""),
-    }
+def _build_queries_from_inventory() -> list[dict]:
+    """Build search queries from distinct product categories in the database.
+    
+    Groups products by (insulation_type, voltage_rating, conductor_material)
+    and creates targeted tender search queries for each category.
+    
+    Returns list of {"query": str, "category": str} dicts.
+    """
+    from api.database.client import supabase_client
+
+    try:
+        result = supabase_client.table("products").select(
+            "insulation_type, voltage_rating, conductor_material, category"
+        ).execute()
+        products = result.data or []
+    except Exception as e:
+        logger.error(f"Failed to fetch products for query building: {e}")
+        return [{"query": "1100V XLPE cable tender RFP India", "category": "Default"}]
+
+    if not products:
+        return [{"query": "1100V XLPE cable tender RFP India", "category": "Default"}]
+
+    # Group by unique (insulation, voltage, material) combinations
+    seen = set()
+    queries = []
+    for p in products:
+        insulation = p.get("insulation_type", "XLPE")
+        voltage = p.get("voltage_rating", 1100)
+        material = p.get("conductor_material", "copper")
+        category = p.get("category", "power_cable")
+
+        key = (insulation, voltage, material)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        query = f"{voltage}V {insulation} {material} cable tender RFP India 2025"
+        label = f"{material.title()} {insulation} {voltage}V"
+        queries.append({"query": query, "category": label})
+
+    # Cap at 5 queries to stay within Tavily rate limits
+    return queries[:5]
 
 
-def _send_alert_email(opportunities: list[dict], query: str, alert_email: str):
+def _send_alert_email(opportunities: list[dict], queries_used: list[str], alert_email: str):
     """Send an email alert with discovered tender opportunities via Resend."""
     resend_key = os.environ.get("RESEND_API_KEY", "")
     if not resend_key or not alert_email:
@@ -44,33 +81,47 @@ def _send_alert_email(opportunities: list[dict], query: str, alert_email: str):
 
     resend.api_key = resend_key
 
-    # Build HTML email body
-    items_html = ""
-    for opp in opportunities[:5]:
-        items_html += f"""
-        <div style="border:1px solid #e4e4e7; border-radius:8px; padding:16px; margin-bottom:12px; background:#fafafa;">
-            <h3 style="margin:0 0 8px 0; color:#18181b; font-size:15px;">{opp.get('tender_title', 'Untitled')}</h3>
-            <p style="margin:0 0 8px 0; color:#71717a; font-size:13px;">{opp.get('summary', 'No summary')}</p>
-            <p style="margin:0; font-size:12px; color:#a1a1aa;">
-                Issuing Authority: {opp.get('issuing_authority', 'N/A')} |
-                <a href="{opp.get('source_url', '#')}" style="color:#3b82f6;">View Source</a>
-            </p>
-        </div>
+    # Build HTML table rows
+    rows_html = ""
+    for i, opp in enumerate(opportunities[:15], 1):
+        rows_html += f"""
+        <tr style="border-bottom:1px solid #e4e4e7;">
+            <td style="padding:10px 12px; font-size:13px; color:#71717a;">{i}</td>
+            <td style="padding:10px 12px; font-size:13px; font-weight:500; color:#18181b;">
+                <a href="{opp.get('source_url', '#')}" style="color:#3b82f6; text-decoration:none;">{opp.get('tender_title', 'Untitled')}</a>
+            </td>
+            <td style="padding:10px 12px; font-size:12px; color:#71717a;">{opp.get('issuing_authority', 'N/A')}</td>
+            <td style="padding:10px 12px; font-size:12px; color:#52525b;">{opp.get('matched_category', 'General')}</td>
+            <td style="padding:10px 12px; font-size:12px; color:#71717a; max-width:200px;">{opp.get('summary', '')[:120]}...</td>
+        </tr>
         """
 
     html_body = f"""
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width:600px; margin:0 auto;">
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width:800px; margin:0 auto;">
         <div style="background:linear-gradient(135deg, #3b82f6, #10b981); padding:24px; border-radius:12px 12px 0 0;">
             <h1 style="color:white; margin:0; font-size:20px;">⚡ FMCG Tender Alert</h1>
             <p style="color:rgba(255,255,255,0.85); margin:4px 0 0 0; font-size:13px;">
-                Auto-discovered {len(opportunities)} new tender opportunity(ies)
+                Auto-discovered {len(opportunities)} tender(s) across {len(queries_used)} product categories
             </p>
         </div>
         <div style="padding:20px; background:white; border:1px solid #e4e4e7; border-top:none; border-radius:0 0 12px 12px;">
             <p style="color:#52525b; font-size:13px; margin:0 0 16px 0;">
-                Search query: <strong>"{query}"</strong>
+                Categories scanned: <strong>{', '.join(queries_used)}</strong>
             </p>
-            {items_html}
+            <table style="width:100%; border-collapse:collapse; border:1px solid #e4e4e7; border-radius:8px;">
+                <thead>
+                    <tr style="background:#f4f4f5;">
+                        <th style="padding:10px 12px; text-align:left; font-size:11px; color:#71717a; text-transform:uppercase;">#</th>
+                        <th style="padding:10px 12px; text-align:left; font-size:11px; color:#71717a; text-transform:uppercase;">Tender Title</th>
+                        <th style="padding:10px 12px; text-align:left; font-size:11px; color:#71717a; text-transform:uppercase;">Authority</th>
+                        <th style="padding:10px 12px; text-align:left; font-size:11px; color:#71717a; text-transform:uppercase;">Category</th>
+                        <th style="padding:10px 12px; text-align:left; font-size:11px; color:#71717a; text-transform:uppercase;">Summary</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                </tbody>
+            </table>
             <div style="margin-top:20px; padding-top:16px; border-top:1px solid #e4e4e7;">
                 <a href="http://localhost:5173" style="display:inline-block; background:#3b82f6; color:white; padding:10px 24px; border-radius:6px; text-decoration:none; font-size:14px; font-weight:600;">
                     Open RFP Platform
@@ -87,7 +138,7 @@ def _send_alert_email(opportunities: list[dict], query: str, alert_email: str):
         resend.Emails.send({
             "from": "FMCG Tender Scout <onboarding@resend.dev>",
             "to": [alert_email],
-            "subject": f"[FMCG Alert] {len(opportunities)} New Tender(s) Discovered",
+            "subject": f"[FMCG Alert] {len(opportunities)} New Tender(s) Across {len(queries_used)} Categories",
             "html": html_body,
         })
         logger.info(f"Alert email sent to {alert_email}")
@@ -98,29 +149,42 @@ def _send_alert_email(opportunities: list[dict], query: str, alert_email: str):
 
 
 def scout_and_alert():
-    """Execute a tender scout run and send email alert if results found.
+    """Execute a full inventory-wide tender scout and send email alert.
     
-    This function is called by the scheduler on a cron schedule.
-    It can also be called manually for testing.
+    1. Builds queries from distinct product categories in the database
+    2. Runs Tavily search for each category
+    3. LLM structures raw results into tender opportunities
+    4. Sends tabulated email alert
+    5. Logs to scout_logs table
     """
     from langchain_groq import ChatGroq
     from langchain_community.tools.tavily_search import TavilySearchResults
     from api.database.client import supabase_client
 
-    config = _get_scout_config()
-    query = config["query"]
-    alert_email = config["alert_email"]
+    alert_email = os.environ.get("ALERT_EMAIL", "")
 
-    logger.info(f"Starting auto-scout: query='{query}'")
+    # Step 1: Build queries from inventory categories
+    query_configs = _build_queries_from_inventory()
+    categories_searched = [q["category"] for q in query_configs]
+    logger.info(f"Starting inventory-wide scout: {len(query_configs)} categories: {categories_searched}")
+
+    all_opportunities = []
 
     try:
-        # Step 1: Tavily web search
-        search_tool = TavilySearchResults(max_results=8, search_depth="advanced")
-        raw_results = search_tool.invoke(query)
-
-        # Step 2: LLM structuring
+        search_tool = TavilySearchResults(max_results=5, search_depth="advanced")
         scout_llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
-        structuring_prompt = f"""You are a procurement intelligence analyst. Analyze these web search results about infrastructure tenders.
+
+        for qc in query_configs:
+            query = qc["query"]
+            category = qc["category"]
+            logger.info(f"  Scouting: {category} → '{query}'")
+
+            try:
+                # Tavily search
+                raw_results = search_tool.invoke(query)
+
+                # LLM structuring
+                structuring_prompt = f"""You are a procurement intelligence analyst. Analyze these web search results about infrastructure tenders.
 
 Search Results:
 {json.dumps(raw_results, indent=2)}
@@ -131,40 +195,65 @@ Extract and return a JSON array of tender opportunities. Each object must have:
 - "issuing_authority": string
 - "source_url": string
 
-Return ONLY the raw JSON array."""
+Return ONLY the raw JSON array. No explanation."""
 
-        response = scout_llm.invoke(structuring_prompt)
-        content = response.content.strip()
-        if content.startswith("```"):
-            content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+                response = scout_llm.invoke(structuring_prompt)
+                content = response.content.strip()
+                if content.startswith("```"):
+                    content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
-        try:
-            opportunities = json.loads(content)
-        except json.JSONDecodeError:
-            opportunities = [{"tender_title": r.get("title", "Unknown"), "summary": r.get("content", "")[:200], "issuing_authority": "N/A", "source_url": r.get("url", "#")} for r in raw_results[:5] if isinstance(r, dict)]
+                try:
+                    opps = json.loads(content)
+                except json.JSONDecodeError:
+                    opps = [{"tender_title": r.get("title", "Unknown"), "summary": r.get("content", "")[:200], "issuing_authority": "N/A", "source_url": r.get("url", "#")} for r in raw_results[:3] if isinstance(r, dict)]
+
+                # Tag each opportunity with the matched category
+                for opp in opps:
+                    opp["matched_category"] = category
+
+                all_opportunities.extend(opps)
+
+            except Exception as e:
+                logger.error(f"  Scout failed for {category}: {e}")
+                continue
+
+        # Deduplicate by source_url
+        seen_urls = set()
+        unique_opportunities = []
+        for opp in all_opportunities:
+            url = opp.get("source_url", "")
+            if url not in seen_urls:
+                seen_urls.add(url)
+                unique_opportunities.append(opp)
 
         # Step 3: Send email alert if results found
         alert_sent = False
-        if opportunities and alert_email:
-            alert_sent = _send_alert_email(opportunities, query, alert_email)
+        if unique_opportunities and alert_email:
+            alert_sent = _send_alert_email(unique_opportunities, categories_searched, alert_email)
 
         # Step 4: Log to database
         try:
             supabase_client.table("scout_logs").insert({
-                "query": query,
-                "results_count": len(opportunities),
+                "query": f"Inventory-wide: {', '.join(categories_searched)}",
+                "results_count": len(unique_opportunities),
                 "alert_sent": alert_sent,
-                "results_json": json.dumps(opportunities),
+                "results_json": json.dumps(unique_opportunities),
             }).execute()
         except Exception as e:
             logger.error(f"Failed to log scout run: {e}")
 
-        logger.info(f"Scout complete: {len(opportunities)} results, alert_sent={alert_sent}")
-        return opportunities
+        logger.info(f"Scout complete: {len(unique_opportunities)} unique results across {len(categories_searched)} categories, alert_sent={alert_sent}")
+
+        return {
+            "results_count": len(unique_opportunities),
+            "categories_searched": categories_searched,
+            "opportunities": unique_opportunities,
+            "alert_sent": alert_sent,
+        }
 
     except Exception as e:
         logger.error(f"Scout failed: {e}")
-        return []
+        return {"results_count": 0, "categories_searched": categories_searched, "opportunities": [], "alert_sent": False}
 
 
 def start_scheduler():

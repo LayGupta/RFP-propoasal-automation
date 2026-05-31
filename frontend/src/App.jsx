@@ -169,15 +169,15 @@ export default function App() {
         </div>
 
         {/* Tab Navigation */}
-        <nav className="app-header__tabs">
+        <nav className="tab-nav">
           <button
-            className={`app-header__tab ${activeTab === 'workspace' ? 'app-header__tab--active' : ''}`}
+            className={`tab-nav__item ${activeTab === 'workspace' ? 'tab-nav__item--active' : ''}`}
             onClick={() => setActiveTab('workspace')}
           >
             🏭 Workspace
           </button>
           <button
-            className={`app-header__tab ${activeTab === 'analytics' ? 'app-header__tab--active' : ''}`}
+            className={`tab-nav__item ${activeTab === 'analytics' ? 'tab-nav__item--active' : ''}`}
             onClick={() => setActiveTab('analytics')}
           >
             📊 Analytics

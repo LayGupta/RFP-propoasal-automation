@@ -24,10 +24,22 @@ export default function VolatilitySlider({ value, onChange, disabled }) {
       </div>
 
       <div className="slider-container">
-        {/* Large numeric display of the current multiplier value */}
+        {/* Large numeric display with glowing pill badge */}
         <div className="slider-display">
-          <span className="slider-display__value">{value.toFixed(2)}</span>
-          <span className="slider-display__unit">×</span>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'baseline',
+            gap: '4px',
+            padding: '6px 20px',
+            background: value > 1.15 ? 'var(--accent-amber-glow)' : 'var(--accent-blue-glow)',
+            border: `1px solid ${value > 1.15 ? 'rgba(245,158,11,0.25)' : 'rgba(59,130,246,0.25)'}`,
+            borderRadius: '100px',
+            boxShadow: value > 1.15 ? '0 0 16px rgba(245,158,11,0.1)' : '0 0 16px rgba(59,130,246,0.1)',
+            transition: 'all 0.3s ease',
+          }}>
+            <span className="slider-display__value">{value.toFixed(2)}</span>
+            <span className="slider-display__unit">×</span>
+          </div>
         </div>
 
         {/* Interactive range slider with 0.01 step precision */}
