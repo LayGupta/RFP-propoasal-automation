@@ -1,261 +1,263 @@
-# ⚡ FMCG — RFP Bid Intelligence Platform
-
-> **AI-powered multi-agent system for automated Request for Proposal (RFP) analysis, cable product matching, engineering blueprint generation, and commercial bid proposal compilation — purpose-built for electrical cable manufacturing companies.**
-
-[![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![React](https://img.shields.io/badge/React-19+-61DAFB?logo=react&logoColor=black)](https://react.dev)
-[![LangGraph](https://img.shields.io/badge/LangGraph-1.2+-FF6F00?logo=data:image/svg+xml;base64,&logoColor=white)](https://langchain-ai.github.io/langgraph/)
-[![Groq](https://img.shields.io/badge/Groq-Llama_3.3_70B-F55036)](https://groq.com)
-[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
+<p align="center">
+  <h1 align="center">⚡ FMCG — RFP Bid Intelligence Platform</h1>
+  <p align="center">
+    <strong>Autonomous multi-agent RFP processing pipeline with human-in-the-loop review, RAG chatbot, proactive tender scouting, and executive analytics.</strong>
+  </p>
+  <p align="center">
+    <img src="https://img.shields.io/badge/LangGraph-8_Node_Pipeline-blue?style=flat-square" />
+    <img src="https://img.shields.io/badge/LLM-Llama_3.3_70B-green?style=flat-square" />
+    <img src="https://img.shields.io/badge/Frontend-React_+_Vite-61DAFB?style=flat-square" />
+    <img src="https://img.shields.io/badge/Database-Supabase_+_PostgreSQL-3ECF8E?style=flat-square" />
+    <img src="https://img.shields.io/badge/Auth-Custom_JWT-orange?style=flat-square" />
+  </p>
+</p>
 
 ---
 
 ## 📋 Table of Contents
 
-- [What Does This System Do?](#-what-does-this-system-do)
-- [System Architecture](#-system-architecture)
-- [Multi-Agent Workflow — The 7-Node Pipeline](#-multi-agent-workflow--the-7-node-pipeline)
-- [Human-in-the-Loop Review](#-human-in-the-loop-review)
-- [Tech Stack](#-tech-stack)
-- [Project Structure](#-project-structure)
-- [Getting Started](#-getting-started)
-- [Environment Variables](#-environment-variables)
-- [API Reference](#-api-reference)
-- [Frontend Components](#-frontend-components)
-- [Deployment](#-deployment)
-- [How It Works — End-to-End Flow](#-how-it-works--end-to-end-flow)
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [Database Setup](#database-setup)
+- [API Reference](#api-reference)
+- [Frontend Components](#frontend-components)
+- [LangGraph Workflow Nodes](#langgraph-workflow-nodes)
+- [RAG Chatbot](#rag-chatbot)
+- [Auto-Scout Tender System](#auto-scout-tender-system)
+- [Email Outreach](#email-outreach)
+- [Analytics Dashboard](#analytics-dashboard)
+- [Screenshots](#screenshots)
+- [Deployment](#deployment)
+- [License](#license)
 
 ---
 
-## 🎯 What Does This System Do?
+## Overview
 
-In the cable manufacturing industry, companies receive **Requests for Proposals (RFPs)** from clients specifying exact cable requirements — core counts, conductor materials, voltage ratings, insulation types, and quantities. Sales engineers must manually:
+FMCG RFP Bid Intelligence Platform is an enterprise-grade B2B application that automates the entire Request for Proposal (RFP) lifecycle for an industrial cable manufacturing company. Users upload RFP documents (PDF, DOCX, TXT), and the system autonomously:
 
-1. Parse these multi-page documents to extract individual line item specifications
-2. Cross-reference each spec against the company's product catalog
-3. Identify which items can be fulfilled from standard inventory vs. which require custom **Make-to-Order (MTO)** manufacturing
-4. Generate engineering modification blueprints for custom items
-5. Calculate pricing with commodity volatility adjustments
-6. Compile everything into a formal bid proposal
+1. **Extracts** structured requirements from the document
+2. **Matches** each line item against a 45-product cable catalog in Supabase
+3. **Routes** items through compliance checks — standard items go direct, custom items trigger MTO (Make-to-Order) blueprint generation
+4. **Pauses** for human review when custom manufacturing is needed
+5. **Prices** everything with commodity volatility multipliers
+6. **Generates** a formatted markdown proposal
+7. **Drafts** a professional outreach email for client submission
+8. **Saves** the proposal to history for future reference
 
-**This platform automates the entire process using a multi-agent AI pipeline**, reducing what takes days of manual work into minutes of automated analysis with a single human review checkpoint.
-
-### Key Capabilities
-
-| Capability | Description |
-|---|---|
-| **Document Parsing** | Accepts PDF, DOCX, and TXT uploads; extracts text server-side |
-| **AI Requirement Extraction** | LLM-powered structured parsing of natural language into typed specifications |
-| **Automated SKU Matching** | Voltage-threshold-based catalog matching with gap analysis |
-| **MTO Detection** | Automatic flagging of items exceeding standard catalog parameters (>600V) |
-| **Engineering Blueprints** | AI-generated modification profiles for custom manufacturing items |
-| **Human Review Gate** | Workflow pauses for manager approval with adjustable pricing controls |
-| **Dynamic Pricing** | Commodity volatility multiplier applied to all base prices |
-| **Proposal Generation** | Complete markdown bid document with tables, specs, blueprints, and pricing |
-| **Persistent State** | PostgreSQL-backed checkpointing survives server restarts and serverless cold starts |
+Beyond proposal generation, the platform includes an AI chatbot for querying document content and product catalogs, a proactive tender scouting system that scans government portals daily, and an executive analytics dashboard.
 
 ---
 
-## 🏗 System Architecture
+## Key Features
+
+### 🏭 Core RFP Processing
+- **PDF/DOCX/TXT ingestion** with server-side text extraction (pdfplumber + python-docx)
+- **8-node LangGraph workflow** with persistent PostgreSQL checkpointing
+- **Human-in-the-loop review** — workflow pauses at MTO items for manager approval
+- **Commodity volatility pricing** — adjustable 0.5x–2.5x multiplier with real-time slider
+- **Formatted proposal output** with download as `.txt` file
+
+### 🤖 RAG Chatbot
+- **FAISS vector store** auto-built from uploaded RFPs + product catalog
+- **Gemini embeddings** (`gemini-embedding-001`) for semantic search
+- **ChatGroq (Llama 3.3 70B)** for answer generation
+- **Guardrails** — keyword + LLM dual-layer filtering blocks off-topic questions
+- **Source citations** — shows retrieved chunks used for each answer
+
+### 🔍 Auto-Scout Tender System
+- **Inventory-wide scanning** — queries all product categories (insulation, voltage, material combinations)
+- **Tavily deep web search** — crawls tender portals (tendersontime.com, GeM, govt sites)
+- **LLM structuring** — Llama 3.3 extracts title, authority, summary, URL from raw results
+- **Deduplication** — same tender found via multiple queries appears once
+- **Email alerts** — tabulated HTML email via Resend API
+- **Cron schedule** — daily at 6:00 AM IST via APScheduler
+- **Collapsible UI** — minimize/expand toggle in sidebar
+
+### 📊 Executive Analytics Dashboard
+- **KPI cards** — Total proposals, products, scout runs, inventory items
+- **Proposals timeline** — 30-day bar chart (Recharts)
+- **Scout history** — results count over time
+- **Product distribution** — breakdown by category
+
+### 📧 Email Outreach
+- **AI-drafted email** — auto-generated from proposal content
+- **Fully editable** — textarea for body, editable subject + recipient
+- **Manual send** — "Send to Client" button (never auto-sends)
+- **Reset to original** — restore AI draft after edits
+- **Resend API** integration
+
+### 🔐 Authentication
+- **Custom JWT auth** — replaces Supabase Auth
+- **bcrypt password hashing** (cost factor 12)
+- **72-hour token expiry** with HS256 signing
+- **Register + Login** pages with validation
+- **localStorage persistence** — auto-login on refresh
+
+### 🎨 Premium Dark UI
+- **Glassmorphism** — `backdrop-filter: blur()` on sidebar, header, cards
+- **Ambient glow** — radial blue/emerald gradients in background
+- **Micro-interactions** — hover lift, active scale, slide transitions
+- **Floating icon animation** — dropzone icon gently bobs
+- **Premium buttons** — gradient fills with glow on hover
+
+---
+
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        FRONTEND (React + Vite)                        │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌───────────┐  │
-│  │ BidManager   │  │  MtoModal    │  │ Volatility   │  │ Proposal  │  │
-│  │ (File Upload)│  │ (HITL Review)│  │ Slider       │  │ Viewer    │  │
-│  └──────┬───────┘  └──────┬───────┘  └──────────────┘  └───────────┘  │
-│         │ FormData         │ JSON                                      │
-│         ▼                  ▼                                           │
-│    POST /api/start    POST /api/resume                                 │
-└─────────┬──────────────────┬───────────────────────────────────────────┘
-          │  Vite Proxy      │
-          ▼                  ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    BACKEND (FastAPI + LangGraph)                       │
-│                                                                        │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │                   FastAPI Gateway (index.py)                    │   │
-│  │  • Multipart file upload + server-side PDF/DOCX/TXT parsing    │   │
-│  │  • Routes to LangGraph workflow via .stream()                  │   │
-│  │  • Catches interrupt events for HITL pause/resume              │   │
-│  └────────────────────────────┬────────────────────────────────────┘   │
-│                               │                                        │
-│  ┌────────────────────────────▼────────────────────────────────────┐   │
-│  │              LangGraph StateGraph (workflow.py)                 │   │
-│  │                                                                 │   │
-│  │  START → [Sales Discovery] → [Technical Matching]               │   │
-│  │               │                       │                         │   │
-│  │               │              ┌────────▼────────┐                │   │
-│  │               │              │ Compliance       │                │   │
-│  │               │              │ Router           │                │   │
-│  │               │              └──┬───────────┬──┘                │   │
-│  │               │          has MTO│           │all standard       │   │
-│  │               │                 ▼           │                   │   │
-│  │               │    [MTO Blueprint Gen]      │                   │   │
-│  │               │           │                 │                   │   │
-│  │               │           ▼                 │                   │   │
-│  │               │    [Human Review] ◄─ interrupt()                │   │
-│  │               │           │                 │                   │   │
-│  │               │           ▼                 │                   │   │
-│  │               │    [Pricing Engine] ◄───────┘                   │   │
-│  │               │           │                                     │   │
-│  │               │           ▼                                     │   │
-│  │               │    [Output Compiler] → END                      │   │
-│  └───────────────┼─────────────────────────────────────────────────┘   │
-│                  │                                                      │
-│  ┌───────────────▼─────────────────────────────────────────────────┐   │
-│  │                    Persistence Layer                            │   │
-│  │  ┌─────────────────────┐    ┌──────────────────────────────┐   │   │
-│  │  │ Supabase REST Client│    │ PostgresSaver (Checkpointer) │   │   │
-│  │  │ (Table queries)     │    │ psycopg ConnectionPool       │   │   │
-│  │  └─────────────────────┘    └──────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-                    ┌──────────────────────────────┐
-                    │    Supabase PostgreSQL DB     │
-                    │  • checkpoint tables          │
-                    │  • checkpoint_blobs           │
-                    │  • checkpoint_writes          │
-                    └──────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        FRONTEND (React + Vite)                  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────────────┐ │
+│  │LoginPage │ │BidManager│ │MtoModal  │ │ProposalViewer      │ │
+│  │          │ │(Dropzone)│ │(Review)  │ │(Output + Download) │ │
+│  └──────────┘ └──────────┘ └──────────┘ └────────────────────┘ │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────────────┐ │
+│  │ChatPanel │ │Analytics │ │ScoutSet. │ │OutreachEmailViewer │ │
+│  │(RAG Bot) │ │Dashboard │ │(Tenders) │ │(Editable Draft)    │ │
+│  └──────────┘ └──────────┘ └──────────┘ └────────────────────┘ │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ HTTP (Vite Proxy → :8000)
+┌───────────────────────────▼─────────────────────────────────────┐
+│                     BACKEND (FastAPI + Uvicorn)                  │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │              api/index.py — API Gateway                    │  │
+│  │  /api/process-rfp/start   /api/process-rfp/resume         │  │
+│  │  /api/chat                /api/chat/init                   │  │
+│  │  /api/history             /api/analytics                   │  │
+│  │  /api/scout-trigger       /api/scout-tenders               │  │
+│  │  /api/scout-logs          /api/send-outreach               │  │
+│  │  /api/auth/register       /api/auth/login                  │  │
+│  │  /api/health                                               │  │
+│  └────────────────────────────────────────────────────────────┘  │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────┐       │
+│  │         api/graph/workflow.py — LangGraph Pipeline    │       │
+│  │                                                       │       │
+│  │  sales_discovery → technical_matching → compliance    │       │
+│  │       → mto_blueprint_gen → human_review (INTERRUPT)  │       │
+│  │       → pricing_engine → output_compiler              │       │
+│  │       → email_draft → END                             │       │
+│  └──────────────────────────────────────────────────────┘       │
+│                                                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────┐     │
+│  │ api/auth.py  │  │ api/rag/     │  │ api/scheduler.py  │     │
+│  │ JWT + bcrypt │  │ FAISS+Gemini │  │ APScheduler cron  │     │
+│  └──────────────┘  └──────────────┘  └───────────────────┘     │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+          ┌─────────────────┼─────────────────┐
+          ▼                 ▼                 ▼
+   ┌──────────┐     ┌──────────┐     ┌──────────────┐
+   │ Supabase │     │PostgreSQL│     │  External     │
+   │  Tables  │     │Checkpoint│     │  APIs         │
+   │ users    │     │(LangGraph│     │ • Groq Cloud  │
+   │ products │     │  state)  │     │ • Gemini      │
+   │ proposals│     │          │     │ • Tavily      │
+   │scout_logs│     │          │     │ • Resend      │
+   └──────────┘     └──────────┘     └──────────────┘
 ```
 
 ---
 
-## 🤖 Multi-Agent Workflow — The 7-Node Pipeline
+## Tech Stack
 
-The core intelligence is a **LangGraph StateGraph** with 7 nodes, a conditional router, and a human interrupt gate. Each node reads from and writes to a shared `RFPState` dictionary that persists across requests via PostgreSQL checkpointing.
-
-### Node Details
-
-| # | Node | Type | LLM? | What It Does |
-|---|---|---|---|---|
-| 1 | **Sales Discovery** | Processing | ✅ Llama 3.3 70B | Parses raw RFP text into structured `RFPRequirement` objects — extracts line item IDs, core counts, conductor materials, voltage ratings, insulation types |
-| 2 | **Technical Matching** | Processing | ❌ Rule-based | Matches each requirement against the product catalog using a >600V threshold. Items ≤600V get 92.5% match (standard). Items >600V get 65% match and are flagged as custom MTO |
-| 3 | **Compliance Router** | Decision | ❌ Pure function | Checks if any matched SKU has `is_custom_mto=True`. Routes to MTO blueprint generation or directly to pricing |
-| 4 | **MTO Blueprint Generator** | Processing | ✅ Llama 3.3 70B | For each MTO-flagged item, generates a detailed engineering modification blueprint covering insulation changes, extrusion parameters, QA testing requirements, and lead time estimates |
-| 5 | **Human Review Gate** | Interrupt | ❌ `interrupt()` | **Pauses the entire workflow** and persists state to PostgreSQL. Returns blueprint data to the frontend for manager review. Resumes only when the API receives a `Command(resume=...)` call |
-| 6 | **Pricing Engine** | Processing | ❌ Formulaic | Calculates base prices using core count, voltage tier, and material premiums. Applies the commodity volatility multiplier (potentially adjusted by the human reviewer) |
-| 7 | **Output Compiler** | Processing | ❌ Template | Assembles all results into a structured markdown proposal document with requirements matrix, SKU matching table, MTO blueprints, pricing breakdown, and human review notes |
-
-### State Schema
-
-Every node reads/writes to a shared `RFPState` (TypedDict):
-
-```python
-class RFPState(TypedDict):
-    raw_rfp_content: str                              # Raw document text
-    metadata: dict[str, str]                          # Client name, project, date
-    extracted_requirements: list[RFPRequirement]       # Parsed line items
-    matched_skus: list[SKURecommendation]             # Catalog matches
-    mto_blueprints: list[str]                         # Engineering modification docs
-    pricing_breakdown: list[dict[str, float]]         # Per-SKU pricing
-    commodity_volatility_multiplier: float            # Human-adjustable pricing factor
-    human_override_notes: str | None                  # Manager review comments
-    final_proposal_markdown: str                      # Compiled output document
-```
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | React 18 + Vite | SPA with HMR |
+| **Styling** | Vanilla CSS (Custom Properties) | Glassmorphic dark theme design system |
+| **Charts** | Recharts | Analytics dashboard visualizations |
+| **Backend** | FastAPI + Uvicorn | Async API gateway |
+| **Orchestration** | LangGraph | 8-node stateful workflow with interrupts |
+| **LLM** | ChatGroq (Llama 3.3 70B Versatile) | All reasoning + generation nodes |
+| **Embeddings** | Google Gemini (`gemini-embedding-001`) | Document + catalog vectorization |
+| **Vector Store** | FAISS (CPU) | In-memory semantic search for RAG |
+| **Database** | Supabase (PostgreSQL) | Tables: users, products, proposals, scout_logs |
+| **Checkpointer** | LangGraph PostgresSaver | Persistent workflow state across restarts |
+| **Auth** | Custom JWT (PyJWT + bcrypt) | HS256 token signing, 72h expiry |
+| **Search** | Tavily API | Deep web search for tender scouting |
+| **Email** | Resend API | Transactional emails (outreach + alerts) |
+| **Scheduler** | APScheduler | Daily cron job for tender scouting |
+| **PDF Parsing** | pdfplumber | Server-side PDF text extraction |
+| **DOCX Parsing** | python-docx | Server-side DOCX text extraction |
+| **Package Manager** | uv (Python), npm (JS) | Fast dependency resolution |
 
 ---
 
-## 👤 Human-in-the-Loop Review
-
-This is the critical differentiator. When the compliance router detects items requiring custom manufacturing, the workflow **does not complete automatically**. Instead:
-
-1. **Workflow pauses** at the Human Review node via LangGraph's `interrupt()` primitive
-2. **State is persisted** to PostgreSQL (survives server restarts, Vercel cold starts)
-3. **Blueprint payload is returned** to the frontend via the API response
-4. **MTO Modal opens** showing a side-by-side comparison of non-compliant specs vs. engineering blueprints
-5. **Manager adjusts** the commodity volatility multiplier and adds compliance notes
-6. **Frontend calls `/resume`** with the review data, which issues `Command(resume=...)` to wake the exact checkpointed state
-7. **Workflow continues** through pricing and output compilation with the adjusted parameters
-
-This pattern ensures **no automated bid goes out without human verification** on custom manufacturing items.
-
----
-
-## 🛠 Tech Stack
-
-### Backend
-| Technology | Version | Purpose |
-|---|---|---|
-| **Python** | 3.12+ | Runtime |
-| **FastAPI** | 0.115+ | API framework with async support |
-| **LangGraph** | 1.2+ | Multi-agent state graph orchestration |
-| **ChatGroq** | — | LLM inference via Groq Cloud (Llama 3.3 70B) |
-| **PostgresSaver** | 3.1+ | Persistent state checkpointing |
-| **psycopg** | 3.3+ | PostgreSQL adapter with connection pooling |
-| **Supabase** | 2.30+ | Database hosting + REST client |
-| **pdfplumber** | 0.11+ | PDF text extraction |
-| **python-docx** | 1.2+ | DOCX text extraction |
-| **uv** | — | Python package manager |
-
-### Frontend
-| Technology | Version | Purpose |
-|---|---|---|
-| **React** | 19+ | UI framework |
-| **Vite** | 8+ | Build tool + dev server with HMR |
-| **Vanilla CSS** | — | Custom design system (zinc/steel industrial palette) |
-
-### Infrastructure
-| Technology | Purpose |
-|---|---|
-| **Supabase** | Managed PostgreSQL database + REST API |
-| **Vercel** | Serverless deployment (monorepo config) |
-| **Groq Cloud** | Ultra-fast LLM inference (< 1s latency) |
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 FMCG/
-├── .gitignore                          # Protects .env secrets
-├── vercel.json                         # Monorepo deployment routing
-├── implementation_plan.md              # Architecture design document
+├── .env                          # Environment variables (API keys, DB URLs)
+├── .gitignore
+├── vercel.json                   # Vercel deployment config
+├── README.md                     # This file
 │
-├── backend/                            # 🐍 Python Multi-Agent Backend
-│   ├── pyproject.toml                  # Project config (uv + hatch)
-│   ├── requirements.txt                # Vercel dependency list
+├── backend/
+│   ├── pyproject.toml            # Python dependencies (uv/pip)
+│   ├── uv.lock                   # Locked dependency versions
+│   ├── test_rfp_sample.txt       # Sample RFP for testing
+│   │
 │   └── api/
 │       ├── __init__.py
-│       ├── index.py                    # FastAPI gateway — file upload, /start, /resume endpoints
+│       ├── index.py              # FastAPI app — all 13 API endpoints
+│       ├── auth.py               # JWT auth: register, login, verify
+│       ├── scheduler.py          # APScheduler cron + inventory-wide scout
+│       │
 │       ├── database/
 │       │   ├── __init__.py
-│       │   └── client.py              # Supabase client + PostgreSQL connection pool
-│       └── graph/
+│       │   └── client.py         # Supabase client + PostgreSQL pool singletons
+│       │
+│       ├── graph/
+│       │   ├── __init__.py
+│       │   ├── state.py          # TypedDict state schema (RFPState)
+│       │   └── workflow.py       # 8-node LangGraph workflow definition
+│       │
+│       └── rag/
 │           ├── __init__.py
-│           ├── state.py               # RFPState, RFPRequirement, SKURecommendation TypedDicts
-│           └── workflow.py            # 7-node LangGraph StateGraph + PostgresSaver
+│           ├── engine.py         # FAISS index builder + RAG ask()
+│           └── guardrails.py     # System prompt + keyword guardrails
 │
-└── frontend/                           # ⚛️ React Vite Frontend
-    ├── index.html                      # HTML base with SEO meta
-    ├── package.json                    # Node dependencies
-    ├── vite.config.js                  # Dev proxy /api/* → localhost:8000
+└── frontend/
+    ├── package.json
+    ├── vite.config.js            # Vite config with API proxy to :8000
+    ├── index.html
+    │
     └── src/
-        ├── main.jsx                    # React root entry
-        ├── index.css                   # Complete design system (~570 lines)
-        ├── App.jsx                     # Two-column layout + global state manager
+        ├── App.jsx               # Root layout: auth gate, sidebar, tabs
+        ├── index.css             # Complete design system (1700+ lines)
+        ├── main.jsx              # React entry point
+        │
         └── components/
-            ├── BidManager.jsx          # Drag-and-drop file upload + processing overlay
-            ├── MtoModal.jsx            # Human review modal — SKU grid, blueprints, controls
-            ├── ProposalViewer.jsx      # Markdown-to-HTML bid document renderer
-            └── VolatilitySlider.jsx    # Sidebar commodity pricing control (0.5×–2.5×)
+            ├── LoginPage.jsx         # Register/Login form with JWT
+            ├── BidManager.jsx        # File dropzone + processing overlay
+            ├── MtoModal.jsx          # Human-in-the-loop MTO review panel
+            ├── VolatilitySlider.jsx   # Commodity multiplier slider (0.5x–2.5x)
+            ├── ProposalViewer.jsx     # Markdown renderer + Download .TXT + Copy
+            ├── OutreachEmailViewer.jsx# Editable email draft + Send button
+            ├── HistorySidebar.jsx     # Proposal history list with select
+            ├── ChatPanel.jsx          # RAG chatbot slide-out drawer
+            ├── AnalyticsDashboard.jsx # KPI cards + Recharts charts
+            └── ScoutSettings.jsx      # Collapsible tender scout panel
 ```
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-- **Python 3.12+** installed
-- **Node.js 18+** installed
-- **uv** Python package manager ([install guide](https://docs.astral.sh/uv/getting-started/installation/))
-- **Supabase account** with a project ([supabase.com](https://supabase.com))
-- **Groq API key** ([console.groq.com/keys](https://console.groq.com/keys))
+- **Python 3.12+**
+- **Node.js 18+**
+- **uv** (Python package manager) — `pip install uv`
+- **Supabase** account with a project
+- API keys: Groq, Gemini, Tavily, Resend
 
 ### 1. Clone the Repository
 
@@ -264,331 +266,353 @@ git clone https://github.com/LayGupta/RFP-propoasal-automation.git
 cd RFP-propoasal-automation
 ```
 
-### 2. Create the Environment File
+### 2. Setup Environment Variables
 
-Create a `.env` file in the project root with the following variables:
-
-```env
-# LLM Provider — Groq Cloud (get key from https://console.groq.com/keys)
-GROQ_API_KEY=gsk_your_groq_api_key_here
-
-# Supabase — Backend service role (Dashboard → Settings → API)
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_SERVICE_KEY=eyJ...your_service_role_key
-
-# PostgreSQL — Direct connection string (Dashboard → Settings → Database → URI)
-# IMPORTANT: If your password contains @, encode it as %40
-DATABASE_URL=postgresql://postgres:your_password@db.your-ref.supabase.co:5432/postgres
-
-# Optional
-GEMINI_API_KEY=your_gemini_key_for_embeddings
-TAVILY_API_KEY=your_tavily_key_for_search
-ENV=development
-PORT=8000
+```bash
+cp .env.example .env
+# Fill in all required API keys (see Environment Variables section)
 ```
 
-### 3. Install Backend Dependencies
+### 3. Backend Setup
 
 ```bash
 cd backend
+
+# Install Python dependencies with uv
 uv sync
+
+# Run database migrations (create tables in Supabase)
+uv run python -c "from api.database.client import supabase_client; print('DB connected!')"
+
+# Start the backend server
+uv run uvicorn api.index:app --host 0.0.0.0 --port 8000
 ```
 
-This installs all 90+ packages including FastAPI, LangGraph, psycopg, pdfplumber, etc.
+### 4. Frontend Setup
 
-### 4. Install Frontend Dependencies
-
-```bash
-cd ../frontend
-npm install
-```
-
-### 5. Start Both Servers
-
-**Terminal 1 — Backend (FastAPI on port 8000):**
-```bash
-cd backend
-uv run uvicorn api.index:app --reload --port 8000
-```
-
-**Terminal 2 — Frontend (Vite on port 5173):**
 ```bash
 cd frontend
+
+# Install Node dependencies
+npm install
+
+# Start the development server
 npm run dev
 ```
 
-### 6. Open the Dashboard
+### 5. Open the Application
 
-Navigate to **http://localhost:5173** in your browser.
-
-The Vite dev server proxies all `/api/*` requests to the FastAPI backend automatically — no CORS issues.
+Navigate to **http://localhost:5173** in your browser. Register a new account and start processing RFPs.
 
 ---
 
-## 🔑 Environment Variables
+## Environment Variables
 
-| Variable | Required | Format | Where to Find |
-|---|---|---|---|
-| `GROQ_API_KEY` | ✅ | `gsk_xxxxxxxxx` | [console.groq.com/keys](https://console.groq.com/keys) |
-| `SUPABASE_URL` | ✅ | `https://xxxx.supabase.co` | Supabase Dashboard → Settings → API → Project URL |
-| `SUPABASE_SERVICE_KEY` | ✅ | `eyJhbG...` (JWT) | Supabase Dashboard → Settings → API → `service_role` secret |
-| `DATABASE_URL` | ✅ | `postgresql://user:pass@host:5432/db` | Supabase Dashboard → Settings → Database → Connection string (URI) |
-| `GEMINI_API_KEY` | ❌ | `AIzaSy...` | [Google AI Studio](https://aistudio.google.com) |
-| `TAVILY_API_KEY` | ❌ | `tvly-...` | [tavily.com](https://tavily.com) |
+Create a `.env` file in the project root with the following variables:
 
-> ⚠️ **Security**: The `.env` file is excluded from git via `.gitignore`. Never commit API keys.
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `GROQ_API_KEY` | Groq Cloud API key for Llama 3.3 70B | ✅ |
+| `GEMINI_API_KEY` | Google Gemini API key for embeddings | ✅ |
+| `SUPABASE_URL` | Supabase project REST API URL | ✅ |
+| `SUPABASE_SERVICE_KEY` | Supabase service_role secret key | ✅ |
+| `DATABASE_URL` | Direct PostgreSQL connection string | ✅ |
+| `TAVILY_API_KEY` | Tavily API key for web search | ✅ |
+| `JWT_SECRET` | Secret key for signing JWT tokens | ✅ |
+| `RESEND_API_KEY` | Resend API key for transactional emails | ✅ |
+| `ALERT_EMAIL` | Email address for scout alert notifications | ✅ |
+| `SCOUT_QUERY` | Default scout search query (overridden by inventory scan) | ❌ |
+| `ENV` | Environment mode (`development` / `production`) | ❌ |
+| `PORT` | Backend server port (default: 8000) | ❌ |
 
 ---
 
-## 📡 API Reference
+## Database Setup
 
-### `GET /api/health`
-Health check endpoint.
+Run these SQL migrations in the **Supabase SQL Editor** (Dashboard → SQL Editor → New Query):
 
-**Response:**
-```json
-{ "status": "healthy", "service": "fmcg-rfp-api" }
+### Users Table
+
+```sql
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    full_name TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+### Products Table (Inventory Catalog)
+
+```sql
+CREATE TABLE IF NOT EXISTS products (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    sku_id TEXT UNIQUE NOT NULL,
+    product_name TEXT NOT NULL,
+    conductor_material TEXT NOT NULL,        -- 'copper' or 'aluminium'
+    insulation_type TEXT NOT NULL,           -- 'XLPE', 'PVC', 'EPR'
+    voltage_rating INTEGER NOT NULL,         -- e.g., 450, 600, 1100
+    core_count INTEGER NOT NULL,             -- e.g., 1, 2, 3, 4
+    cross_section_mm2 NUMERIC NOT NULL,      -- e.g., 1.5, 4.0, 25.0
+    armor_type TEXT DEFAULT 'unarmoured',
+    base_price_per_meter NUMERIC NOT NULL,
+    stock_quantity INTEGER DEFAULT 0,
+    lead_time_days INTEGER DEFAULT 7,
+    brand TEXT DEFAULT 'FMCG',
+    category TEXT DEFAULT 'power_cable',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+### Proposals Table
+
+```sql
+CREATE TABLE IF NOT EXISTS proposals (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL,
+    thread_id TEXT NOT NULL,
+    project_name TEXT NOT NULL DEFAULT 'Untitled Project',
+    final_markdown TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_proposals_user_id ON proposals(user_id);
+CREATE INDEX IF NOT EXISTS idx_proposals_created_at ON proposals(created_at DESC);
+```
+
+### Scout Logs Table
+
+```sql
+CREATE TABLE IF NOT EXISTS scout_logs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    query TEXT NOT NULL,
+    results_count INTEGER DEFAULT 0,
+    alert_sent BOOLEAN DEFAULT false,
+    results_json TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+> **Note:** The `products` table should be populated with your cable product catalog. The system includes 45 real products across Polycab, Havells, and KEI brands with copper/aluminium conductors, XLPE/PVC insulation, and voltage ratings from 450V to 1100V.
+
+---
+
+## API Reference
+
+### Authentication
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/auth/register` | — | Register a new user account |
+| `POST` | `/api/auth/login` | — | Login and receive JWT token |
+
+### RFP Processing
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/process-rfp/start` | Optional | Upload RFP document, start workflow |
+| `POST` | `/api/process-rfp/resume` | — | Resume paused workflow with human review |
+
+### Chatbot
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/chat` | — | Ask a question (RAG retrieval + LLM) |
+| `POST` | `/api/chat/init` | — | Manually index a document for RAG |
+
+### History & Analytics
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/history` | Required | Fetch user's saved proposals |
+| `GET` | `/api/analytics` | Required | Get dashboard KPIs and charts |
+
+### Tender Scouting
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/scout-trigger` | — | Manually trigger inventory-wide scout |
+| `POST` | `/api/scout-tenders` | — | Search for tenders with custom query |
+| `GET` | `/api/scout-logs` | — | Fetch scout run history |
+
+### Email & Health
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/send-outreach` | — | Send edited outreach email via Resend |
+| `GET` | `/api/health` | — | Health check endpoint |
+
+---
+
+## Frontend Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **LoginPage** | `LoginPage.jsx` | Register/Login form with JWT auth flow |
+| **BidManager** | `BidManager.jsx` | Drag-and-drop file upload + processing overlay |
+| **MtoModal** | `MtoModal.jsx` | Human-in-the-loop MTO blueprint review panel |
+| **VolatilitySlider** | `VolatilitySlider.jsx` | Commodity multiplier slider with glowing pill badge |
+| **ProposalViewer** | `ProposalViewer.jsx` | Markdown renderer with Download .TXT and Copy buttons |
+| **OutreachEmailViewer** | `OutreachEmailViewer.jsx` | Editable email draft with manual Send to Client |
+| **HistorySidebar** | `HistorySidebar.jsx` | Proposal history list with emerald dot indicators |
+| **ChatPanel** | `ChatPanel.jsx` | Slide-out RAG chatbot with source citations |
+| **AnalyticsDashboard** | `AnalyticsDashboard.jsx` | KPI cards + Recharts bar/line charts |
+| **ScoutSettings** | `ScoutSettings.jsx` | Collapsible tender scout panel with tabulated results |
+
+---
+
+## LangGraph Workflow Nodes
+
+The 8-node pipeline is defined in `backend/api/graph/workflow.py`:
+
+```
+START → sales_discovery → technical_matching → compliance_router
+  │
+  ├─ (all standard) → pricing_engine → output_compiler → email_draft → END
+  │
+  └─ (has MTO items) → mto_blueprint_gen → human_review (INTERRUPT)
+                         ↓ (user resumes)
+                    pricing_engine → output_compiler → email_draft → END
+```
+
+| # | Node | LLM | Description |
+|---|------|-----|-------------|
+| 1 | **sales_discovery** | Llama 3.3 70B | Extracts structured requirements from raw RFP text |
+| 2 | **technical_matching** | Llama 3.3 70B | Matches each requirement against Supabase product catalog |
+| 3 | **compliance_router** | Rule-based | Routes items: standard → pricing, custom → MTO blueprint |
+| 4 | **mto_blueprint_gen** | Llama 3.3 70B | Generates engineering blueprints for custom cable items |
+| 5 | **human_review** | — | `interrupt()` — pauses workflow for manager approval |
+| 6 | **pricing_engine** | Rule-based | Calculates prices with commodity volatility multiplier |
+| 7 | **output_compiler** | — | Assembles final markdown proposal with tables |
+| 8 | **email_draft** | Llama 3.3 70B | Drafts professional outreach email from proposal |
+
+### State Schema
+
+```python
+class RFPState(TypedDict):
+    raw_rfp_content: str
+    metadata: dict
+    extracted_requirements: list[RFPRequirement]
+    matched_skus: list[SKURecommendation]
+    mto_blueprints: list[str]
+    pricing_breakdown: list[dict]
+    commodity_volatility_multiplier: float
+    human_override_notes: Optional[str]
+    final_proposal_markdown: str
+    approved_by: Optional[str]
+    user_id: Optional[str]
+    outreach_email_draft: Optional[str]
 ```
 
 ---
 
-### `POST /api/process-rfp/start`
-Upload an RFP document and start the multi-agent processing workflow.
+## RAG Chatbot
 
-**Content-Type:** `multipart/form-data`
+The chatbot uses Retrieval-Augmented Generation to answer questions about uploaded RFP documents and the product catalog.
 
-| Field | Type | Description |
-|---|---|---|
-| `file` | File | RFP document (PDF, DOCX, or TXT) |
-| `thread_id` | String | Unique UUID session identifier |
+### How It Works
 
-**Response (when MTO items detected):**
-```json
-{
-  "status": "PAUSED_FOR_HUMAN_REVIEW",
-  "thread_id": "uuid-string",
-  "blueprint_payload": ["## MTO Blueprint — LI-001 ..."],
-  "matched_skus": [
-    {
-      "sku_id": "SKU-COPPER-XLPE-3C-CUSTOM",
-      "product_name": "Custom 3-Core Copper XLPE Cable (1100V)",
-      "spec_match_percentage": 65.0,
-      "is_custom_mto": true,
-      "gap_analysis_notes": "Exceeds 600V threshold..."
-    }
-  ]
-}
-```
+1. **Auto-indexing** — When a PDF is uploaded via `/api/process-rfp/start`, the extracted text is automatically indexed into a FAISS vector store using Gemini embeddings (`gemini-embedding-001`)
+2. **Product catalog merge** — Product data from the `products` table is concatenated with the document text before indexing
+3. **Semantic search** — User questions are embedded and the top-4 most similar chunks are retrieved
+4. **LLM answer** — ChatGroq (Llama 3.3 70B) generates an answer grounded in the retrieved context
+5. **Guardrails** — Dual-layer filtering: keyword pre-filter + LLM system prompt ensure on-topic responses
 
-**Response (all standard items — no interrupt):**
-```json
-{
-  "status": "COMPLETED_NO_MTO",
-  "thread_id": "uuid-string",
-  "blueprint_payload": [],
-  "matched_skus": [...]
-}
-```
+### Supported Questions
+- "What is the client name in the RFP?"
+- "List all cable requirements"
+- "What voltage ratings are available?"
+- "Show me copper XLPE products in inventory"
+- "What is the price for SKU PLB-CU-XLPE-3C-25?"
 
 ---
 
-### `POST /api/process-rfp/resume`
-Resume a paused workflow after human review.
+## Auto-Scout Tender System
 
-**Content-Type:** `application/json`
+The scout system proactively discovers government and corporate tenders matching your inventory.
 
-```json
-{
-  "thread_id": "uuid-from-start-response",
-  "adjusted_volatility": 1.15,
-  "notes": "Approved with 15% commodity surcharge."
-}
-```
+### How It Works
 
-**Response:**
-```json
-{
-  "status": "COMPLETED",
-  "thread_id": "uuid-string",
-  "final_proposal_markdown": "# RFP Technical Proposal\n\n**Client:** ..."
-}
-```
+1. **Inventory scan** — Queries the `products` table and groups by distinct `(insulation_type, voltage_rating, conductor_material)` combinations
+2. **Targeted queries** — Builds search queries like `"1100V XLPE copper cable tender RFP India 2025"` for each category (max 5)
+3. **Tavily deep search** — Advanced-depth web search across tender portals
+4. **LLM structuring** — Llama 3.3 extracts structured JSON: title, summary, authority, URL
+5. **Deduplication** — Same tender from multiple searches appears only once
+6. **Email alert** — Sends a tabulated HTML email to `ALERT_EMAIL` via Resend
+7. **Database logging** — Saves results to `scout_logs` table
+
+### Schedule
+- **Automatic**: Daily at 6:00 AM IST (00:30 UTC) via APScheduler cron
+- **Manual**: Click "🌐 Scout Now (All Categories)" in the sidebar
 
 ---
 
-## 🎨 Frontend Components
+## Email Outreach
 
-### App.jsx — Layout & State Manager
-- Two-column grid: sidebar (300px) + main panel (fluid)
-- Manages 5 lifecycle states: `IDLE` → `PROCESSING` → `PAUSED_FOR_HUMAN_REVIEW` → `COMPLETED` / `ERROR`
-- Header with live status indicator (animated dot: idle/processing/paused/complete)
-- Sidebar pipeline visualization showing which nodes have executed
+The system auto-generates a professional bid submission email after proposal completion.
 
-### BidManager.jsx — Document Ingestion Portal
-- Drag-and-drop file upload zone with hover animations
-- File type validation (PDF, DOCX, TXT only)
-- Automatic UUID session ID generation
-- Full-screen processing overlay with progressive stage indicators:
-  - Uploading document & extracting text...
-  - Sales Discovery Agent analyzing requirements...
-  - Technical Matching Engine scanning catalog...
-  - Compliance Router evaluating MTO thresholds...
-
-### MtoModal.jsx — Human-in-the-Loop Review Panel
-- Glassmorphic modal with backdrop blur
-- **SKU Matching Analysis** data grid — shows all items with match %, MTO flag, gap analysis
-- **Engineering Blueprint Viewer** — tabbed display for multiple MTO blueprint documents
-- **Adjustable Volatility Multiplier** — numeric input synced with sidebar slider
-- **Compliance Notes** — free-text area for manager comments
-- **Submit** button triggers async `/resume` call
-
-### VolatilitySlider.jsx — Commodity Pricing Control
-- Range slider: 0.50× to 2.50× with 0.01 step precision
-- Large mono-font numeric display
-- Dynamic zone indicator badges:
-  - 🟢 Below Market (< 0.85×)
-  - 🔵 Market Rate (0.85× – 1.15×)
-  - 🟡 Elevated (1.15× – 1.75×)
-  - 🔴 Critical Surge (> 1.75×)
-
-### ProposalViewer.jsx — Analytical Document Terminal
-- Converts markdown to structured HTML (headings, tables, blockquotes, lists)
-- Toolbar with "Copy Markdown" clipboard action and "New Analysis" reset
-- Thread ID display for traceability
+### Features
+- **AI-drafted** by Llama 3.3 based on the final proposal content
+- **Fully editable** — body, subject, and recipient are all editable
+- **Manual send only** — email is NEVER sent automatically; user must review, edit, and click "Send to Client"
+- **Reset to original** — one-click restore of the AI draft
+- **Resend API** — transactional email delivery with tracking
 
 ---
 
-## ☁️ Deployment
+## Analytics Dashboard
+
+The executive dashboard (accessible via the "📊 Analytics" tab) provides:
+
+| Metric | Source |
+|--------|--------|
+| Total Proposals Generated | `proposals` table count |
+| Product Catalog Size | `products` table count |
+| Scout Runs | `scout_logs` table count |
+| Proposals Timeline (30 days) | `proposals.created_at` grouped by day |
+| Scout Results History | `scout_logs.results_count` over time |
+
+Built with **Recharts** for responsive bar and line charts.
+
+---
+
+## Deployment
 
 ### Vercel (Serverless)
 
-The project includes a `vercel.json` for monorepo deployment:
+The project includes a `vercel.json` for deploying the backend as a Vercel Python serverless function:
 
 ```json
 {
   "version": 2,
-  "builds": [
-    { "src": "backend/api/index.py", "use": "@vercel/python" }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "backend/api/index.py" }
-  ]
+  "builds": [{ "src": "backend/api/index.py", "use": "@vercel/python" }],
+  "routes": [{ "src": "/api/(.*)", "dest": "backend/api/index.py" }]
 }
 ```
 
-**Steps:**
-1. Connect your GitHub repo to Vercel
-2. Add all environment variables in Vercel Project Settings → Environment Variables
-3. Deploy — Vercel auto-detects the Python backend and routes `/api/*` traffic
+### Local Development
 
-> **Note:** The frontend can be deployed as a separate Vercel project or added to the builds array as a static site.
+```bash
+# Terminal 1: Backend
+cd backend
+uv run uvicorn api.index:app --host 0.0.0.0 --port 8000
+
+# Terminal 2: Frontend
+cd frontend
+npm run dev
+```
+
+The Vite dev server proxies `/api/*` requests to the backend at `http://localhost:8000`.
 
 ---
 
-## 🔄 How It Works — End-to-End Flow
+## License
 
-Here's what happens when a user uploads an RFP document:
-
-```
-User uploads "Gujarat Power Station RFP.pdf"
-         │
-         ▼
-┌─ STEP 1: File Upload ─────────────────────────────────────────────┐
-│  • Frontend generates UUID thread_id: "a1b2c3d4-..."             │
-│  • Wraps file + thread_id into FormData                          │
-│  • POST /api/process-rfp/start                                   │
-└──────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─ STEP 2: Server-Side Text Extraction ─────────────────────────────┐
-│  • FastAPI receives UploadFile                                    │
-│  • pdfplumber extracts text from all PDF pages                    │
-│  • Raw text injected into initial RFPState                        │
-└──────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─ STEP 3: Sales Discovery Agent (LLM) ────────────────────────────┐
-│  • ChatGroq (Llama 3.3 70B) parses natural language               │
-│  • Extracts: 3 line items with core count, voltage, material      │
-│  • Output: extracted_requirements[] + metadata{}                  │
-│  Example:                                                         │
-│    LI-001: 3-Core 240mm² Copper XLPE, 1100V                      │
-│    LI-002: 4-Core 16mm² Copper PVC, 415V                         │
-│    LI-003: 1-Core 95mm² Aluminium XLPE, 650V                     │
-└──────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─ STEP 4: Technical Matching Engine ───────────────────────────────┐
-│  • For each requirement, checks voltage against 600V threshold    │
-│  • LI-001 (1100V) → 65% match, is_custom_mto=true               │
-│  • LI-002 (415V)  → 92.5% match, is_custom_mto=false            │
-│  • LI-003 (650V)  → 65% match, is_custom_mto=true               │
-└──────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─ STEP 5: Compliance Router ──────────────────────────────────────┐
-│  • Detects 2 MTO items → routes to blueprint generation           │
-└──────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─ STEP 6: MTO Blueprint Generator (LLM) ─────────────────────────┐
-│  • ChatGroq generates engineering modification profiles           │
-│  • LI-001: Thicken XLPE insulation from 1.0mm to 1.5mm          │
-│  • LI-003: Increase extrusion temp from 220°C to 230°C          │
-│  • Includes QA testing, lead time, and process changes            │
-└──────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─ STEP 7: Human Review Gate — WORKFLOW PAUSES ────────────────────┐
-│  • interrupt() persists full state to PostgreSQL                  │
-│  • API returns PAUSED_FOR_HUMAN_REVIEW with blueprint payload     │
-│  • Frontend opens MTO Modal for manager review                    │
-│                                                                   │
-│  ⏸️ Workflow is frozen. State survives server restarts.           │
-│                                                                   │
-│  Manager reviews blueprints, adjusts volatility to 1.15×,        │
-│  adds notes: "Approved with 15% surcharge"                       │
-│  Clicks "Submit Approved Proposal Specification"                  │
-│                                                                   │
-│  • Frontend POST /api/process-rfp/resume                          │
-│  • Command(resume={notes, multiplier}) wakes the graph            │
-└──────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─ STEP 8: Pricing Engine ─────────────────────────────────────────┐
-│  • Calculates base prices: core_factor + voltage_factor           │
-│  • Applies material premium (copper=1.35×)                        │
-│  • Applies MTO surcharge (1.25× for custom items)                 │
-│  • Applies volatility multiplier (1.15× from human review)        │
-│  • LI-001: $156.09 base → $179.50 adjusted                       │
-│  • LI-002: $95.51 base → $109.84 adjusted                        │
-│  • LI-003: $56.25 base → $64.69 adjusted                         │
-└──────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─ STEP 9: Output Compiler ────────────────────────────────────────┐
-│  • Assembles complete markdown proposal document                  │
-│  • Sections: Requirements Matrix, SKU Matching, MTO Blueprints,  │
-│    Pricing Breakdown, Human Review Notes                          │
-│  • Total: $307.85/m base → $354.03/m adjusted                    │
-└──────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─ STEP 10: Final Proposal Rendered ───────────────────────────────┐
-│  • Frontend receives final_proposal_markdown                      │
-│  • ProposalViewer renders structured HTML with tables              │
-│  • User can copy markdown or start a new analysis                 │
-└──────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📄 License
-
-This project is for educational and demonstration purposes.
+This project is proprietary software developed for FMCG Industrial Solutions.
 
 ---
 
 <p align="center">
-  Built with ⚡ by <a href="https://github.com/LayGupta">Lay Gupta</a>
+  Built with ⚡ LangGraph, 🦙 Llama 3.3, and ☕ late nights.
 </p>
