@@ -1,103 +1,212 @@
 """
-auth.py — JWT Authentication Dependency for FastAPI
+auth.py — Custom JWT Authentication System
 
-Provides a reusable FastAPI dependency `get_current_user()` that:
-  1. Extracts the JWT from the Authorization: Bearer header
-  2. Decodes it using the Supabase JWT secret
-  3. Returns a UserClaims dataclass with user_id and email
+Replaces Supabase Auth with a self-managed auth system:
+  1. register() — Creates a new user with bcrypt-hashed password in the `users` table
+  2. login() — Verifies credentials and returns a signed JWT
+  3. get_current_user() — FastAPI dependency to extract/verify JWT from Authorization header
 
-Used by protected endpoints like /api/history and /api/scout-tenders.
+JWT tokens are signed with the JWT_SECRET environment variable using HS256.
+Passwords are hashed with bcrypt (cost factor 12).
 """
 
 import os
-import jwt
+import uuid
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
-from fastapi import Depends, HTTPException, Header
 from typing import Optional
+
+import jwt
+import bcrypt
+from fastapi import HTTPException, Header
+from pydantic import BaseModel, Field
+
+from api.database.client import supabase_client
+
+
+# ─── JWT Configuration ───
+JWT_SECRET = os.environ.get("JWT_SECRET", "fallback_dev_secret_change_in_production")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRY_HOURS = 72  # Token valid for 3 days
+
+
+# ─── Pydantic Models for Auth Endpoints ───
+class RegisterRequest(BaseModel):
+    """Request body for user registration."""
+    email: str = Field(..., description="User's email address")
+    password: str = Field(..., min_length=6, description="Password (min 6 characters)")
+    full_name: str = Field("", description="User's full name (optional)")
+
+
+class LoginRequest(BaseModel):
+    """Request body for user login."""
+    email: str = Field(..., description="Registered email address")
+    password: str = Field(..., description="Account password")
+
+
+class AuthResponse(BaseModel):
+    """Response returned on successful login/register."""
+    token: str
+    user_id: str
+    email: str
+    full_name: str
 
 
 @dataclass
 class UserClaims:
-    """Decoded JWT user identity extracted from Supabase Auth token."""
+    """Decoded JWT user identity."""
     user_id: str
     email: str
 
 
-def _get_jwt_secret() -> str:
-    """Retrieve the JWT secret from the Supabase service key's signing secret.
+# ─── Password Hashing Utilities ───
+def _hash_password(plain_password: str) -> str:
+    """Hash a plaintext password using bcrypt with cost factor 12."""
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(plain_password.encode("utf-8"), salt).decode("utf-8")
 
-    Supabase uses the project's JWT secret (found in Dashboard → Settings → API → JWT Secret)
-    to sign auth tokens. For simplicity, we use the SUPABASE_JWT_SECRET env var.
-    Falls back to SUPABASE_SERVICE_KEY if JWT_SECRET is not explicitly set.
+
+def _verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plaintext password against a bcrypt hash."""
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8"),
+    )
+
+
+# ─── JWT Token Utilities ───
+def _create_token(user_id: str, email: str) -> str:
+    """Create a signed JWT token with user claims.
+
+    Token payload:
+      - sub: user UUID (standard JWT subject claim)
+      - email: user's email address
+      - iat: issued-at timestamp
+      - exp: expiration timestamp (JWT_EXPIRY_HOURS from now)
     """
-    secret = os.environ.get("SUPABASE_JWT_SECRET")
-    if not secret:
-        # Fallback: many Supabase setups use a separate JWT secret
-        # If not set, we'll try to decode without verification for development
-        secret = os.environ.get("SUPABASE_JWT_SECRET", "")
-    return secret
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "iat": now,
+        "exp": now + timedelta(hours=JWT_EXPIRY_HOURS),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+# ─── Core Auth Functions ───
+def register_user(request: RegisterRequest) -> AuthResponse:
+    """Register a new user account.
+
+    1. Check if email already exists in the users table
+    2. Hash the password with bcrypt
+    3. Insert the new user record
+    4. Return a signed JWT token
+    """
+    # Check for existing user
+    existing = (
+        supabase_client.table("users")
+        .select("id")
+        .eq("email", request.email.lower().strip())
+        .execute()
+    )
+    if existing.data and len(existing.data) > 0:
+        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+
+    # Hash password and insert user
+    password_hash = _hash_password(request.password)
+    user_id = str(uuid.uuid4())
+
+    supabase_client.table("users").insert({
+        "id": user_id,
+        "email": request.email.lower().strip(),
+        "password_hash": password_hash,
+        "full_name": request.full_name.strip(),
+    }).execute()
+
+    # Generate JWT
+    token = _create_token(user_id, request.email.lower().strip())
+
+    return AuthResponse(
+        token=token,
+        user_id=user_id,
+        email=request.email.lower().strip(),
+        full_name=request.full_name.strip(),
+    )
+
+
+def login_user(request: LoginRequest) -> AuthResponse:
+    """Authenticate a user with email + password.
+
+    1. Look up the user by email
+    2. Verify the password against the stored bcrypt hash
+    3. Return a signed JWT token
+    """
+    # Find user by email
+    result = (
+        supabase_client.table("users")
+        .select("id, email, password_hash, full_name")
+        .eq("email", request.email.lower().strip())
+        .execute()
+    )
+
+    if not result.data or len(result.data) == 0:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    user = result.data[0]
+
+    # Verify password
+    if not _verify_password(request.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    # Generate JWT
+    token = _create_token(user["id"], user["email"])
+
+    return AuthResponse(
+        token=token,
+        user_id=user["id"],
+        email=user["email"],
+        full_name=user.get("full_name", ""),
+    )
+
+
+# ─── FastAPI Dependencies ───
 async def get_current_user(
     authorization: Optional[str] = Header(None, alias="Authorization"),
 ) -> UserClaims:
-    """FastAPI dependency to extract and verify the Supabase JWT from the request.
+    """FastAPI dependency: extract and verify JWT from Authorization header.
 
-    Args:
-        authorization: The Authorization header value (e.g., "Bearer eyJhbG...")
-
-    Returns:
-        UserClaims with user_id and email extracted from the token.
-
-    Raises:
-        HTTPException 401 if the token is missing, malformed, or invalid.
+    Returns UserClaims with user_id and email.
+    Raises HTTPException 401 if token is missing, expired, or invalid.
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=401,
-            detail="Missing or malformed Authorization header. Expected: Bearer <jwt_token>",
+            detail="Missing or malformed Authorization header. Expected: Bearer <token>",
         )
 
     token = authorization.split("Bearer ", 1)[1].strip()
 
     try:
-        jwt_secret = _get_jwt_secret()
-
-        if jwt_secret:
-            # Verify the token signature with the Supabase JWT secret
-            payload = jwt.decode(
-                token,
-                jwt_secret,
-                algorithms=["HS256"],
-                audience="authenticated",
-            )
-        else:
-            # Development fallback: decode without verification
-            # WARNING: Only use this in local development, never in production
-            payload = jwt.decode(
-                token,
-                options={"verify_signature": False},
-            )
-
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = payload.get("sub")
         email = payload.get("email", "unknown@user.com")
 
         if not user_id:
-            raise HTTPException(status_code=401, detail="JWT token missing 'sub' claim (user ID).")
+            raise HTTPException(status_code=401, detail="Token missing user ID claim.")
 
         return UserClaims(user_id=user_id, email=email)
 
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="JWT token has expired. Please sign in again.")
+        raise HTTPException(status_code=401, detail="Token has expired. Please sign in again.")
     except jwt.InvalidTokenError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid JWT token: {str(e)}")
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 
 
 async def get_optional_user(
     authorization: Optional[str] = Header(None, alias="Authorization"),
 ) -> Optional[UserClaims]:
-    """Optional auth dependency — returns None instead of 401 if no token is present.
-    Used by endpoints that work with or without authentication."""
+    """Optional auth dependency — returns None instead of 401 if no token present."""
     if not authorization or not authorization.startswith("Bearer "):
         return None
     try:

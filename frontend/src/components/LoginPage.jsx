@@ -1,16 +1,17 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
 
 /**
  * LoginPage — Corporate Authentication Gate
  *
  * Clean, centered login form with email/password fields.
  * Supports both Sign In and Sign Up modes.
- * Uses Supabase Auth for session management.
+ * Uses custom backend API endpoints (/api/auth/login, /api/auth/register).
+ * Stores JWT in localStorage on successful auth.
  */
-export default function LoginPage() {
+export default function LoginPage({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -23,27 +24,43 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      if (isSignUp) {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-        if (signUpError) throw signUpError;
-        setSuccessMessage('Account created. Check your email for verification, or sign in if email confirmation is disabled.');
-      } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (signInError) throw signInError;
-        // onAuthStateChange in App.jsx will handle the redirect
+      const endpoint = isSignUp ? '/api/auth/register' : '/api/auth/login';
+      const body = isSignUp
+        ? { email, password, full_name: fullName }
+        : { email, password };
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Authentication failed.');
       }
+
+      // Store JWT and user info in localStorage
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user_id', data.user_id);
+      localStorage.setItem('user_email', data.email);
+      localStorage.setItem('user_name', data.full_name || '');
+
+      // Notify parent component
+      onLoginSuccess({
+        token: data.token,
+        user_id: data.user_id,
+        email: data.email,
+        full_name: data.full_name || '',
+      });
+
     } catch (err) {
       setError(err.message || 'Authentication failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  }, [email, password, isSignUp]);
+  }, [email, password, fullName, isSignUp, onLoginSuccess]);
 
   return (
     <div className="login-page">
@@ -71,6 +88,22 @@ export default function LoginPage() {
 
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="login-card__form">
+          {/* Full Name — only shown on Sign Up */}
+          {isSignUp && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="login-name">Full Name</label>
+              <input
+                id="login-name"
+                type="text"
+                className="form-input"
+                placeholder="John Doe"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                autoComplete="name"
+              />
+            </div>
+          )}
+
           <div className="form-group">
             <label className="form-label" htmlFor="login-email">Email Address</label>
             <input

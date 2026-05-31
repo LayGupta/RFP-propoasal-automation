@@ -1,24 +1,26 @@
 import { useState, useCallback, useEffect } from 'react';
-import { supabase } from './supabaseClient';
 import LoginPage from './components/LoginPage';
 import BidManager from './components/BidManager';
 import MtoModal from './components/MtoModal';
 import VolatilitySlider from './components/VolatilitySlider';
 import ProposalViewer from './components/ProposalViewer';
 import HistorySidebar from './components/HistorySidebar';
+import ChatPanel from './components/ChatPanel';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
+import OutreachEmailViewer from './components/OutreachEmailViewer';
+import ScoutSettings from './components/ScoutSettings';
 
 /**
- * App — Primary Full-Screen Workspace Layout
+ * App — Primary Full-Screen Workspace Layout (v2.0)
  *
- * Authentication-gated two-column operational grid:
- *   Left Column (Sidebar): History sidebar + Volatility slider + system status panels
- *   Right Column (Main Panel): Dynamic multi-stage dashboard that toggles
- *     between file ingestion (BidManager) and finalized proposal (ProposalViewer)
+ * Authentication-gated two-column operational grid with tab navigation:
+ *   Left Column (Sidebar): History, Volatility, Scout, Pipeline status
+ *   Right Column (Main): "Workspace" tab (RFP processing) | "Analytics" tab
+ *   Overlays: ChatPanel (slide-out RAG drawer), MtoModal (human review)
  *
- * Manages the 4 key lifecycle states: IDLE, PROCESSING, PAUSED_FOR_HUMAN_REVIEW, COMPLETED
+ * Uses custom JWT auth stored in localStorage.
  */
 
-// Lifecycle state constants
 const STATES = {
   IDLE: 'IDLE',
   PROCESSING: 'PROCESSING',
@@ -29,7 +31,7 @@ const STATES = {
 
 export default function App() {
   // ── Auth State ──
-  const [session, setSession] = useState(null);
+  const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   // ── Global Workflow State ──
@@ -39,36 +41,40 @@ export default function App() {
   const [blueprintPayload, setBlueprintPayload] = useState([]);
   const [matchedSkus, setMatchedSkus] = useState([]);
   const [finalProposal, setFinalProposal] = useState('');
+  const [emailDraft, setEmailDraft] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // ── Auth Session Management ──
+  // ── Tab Navigation ──
+  const [activeTab, setActiveTab] = useState('workspace'); // 'workspace' | 'analytics'
+
+  // ── Check localStorage auth on mount ──
   useEffect(() => {
-    // Check for existing session on mount
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      setSession(existingSession);
-      setAuthLoading(false);
-    });
-
-    // Subscribe to auth state changes (login/logout/token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
-        setSession(newSession);
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    const token = localStorage.getItem('token');
+    const email = localStorage.getItem('user_email');
+    const userId = localStorage.getItem('user_id');
+    const fullName = localStorage.getItem('user_name');
+    if (token && email && userId) {
+      setAuthUser({ token, user_id: userId, email, full_name: fullName || '' });
+    }
+    setAuthLoading(false);
   }, []);
 
-  // Handle logout
-  const handleLogout = useCallback(async () => {
-    await supabase.auth.signOut();
-    setSession(null);
+  const handleLoginSuccess = useCallback((userData) => {
+    setAuthUser(userData);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('user_email');
+    localStorage.removeItem('user_name');
+    setAuthUser(null);
     setAppState(STATES.IDLE);
     setThreadId(null);
     setFinalProposal('');
+    setEmailDraft('');
   }, []);
 
-  // Status display label mapping
   const statusLabels = {
     [STATES.IDLE]: 'READY',
     [STATES.PROCESSING]: 'PROCESSING',
@@ -77,7 +83,6 @@ export default function App() {
     [STATES.ERROR]: 'ERROR',
   };
 
-  // Status dot CSS class mapping
   const statusDotClass = {
     [STATES.IDLE]: 'status-dot--idle',
     [STATES.PROCESSING]: 'status-dot--processing',
@@ -86,49 +91,44 @@ export default function App() {
     [STATES.ERROR]: 'status-dot--error',
   };
 
-  // Handle response from the /start endpoint
   const handleStartResponse = useCallback((data) => {
     setThreadId(data.thread_id);
     setMatchedSkus(data.matched_skus || []);
-
     if (data.status === 'PAUSED_FOR_HUMAN_REVIEW') {
-      // Workflow paused — MTO items found, show review modal
       setBlueprintPayload(data.blueprint_payload || []);
       setAppState(STATES.PAUSED);
     } else {
-      // Workflow completed without interrupt — all standard items
       setFinalProposal(data.final_proposal_markdown || '');
+      setEmailDraft(data.outreach_email_draft || '');
       setAppState(STATES.COMPLETED);
     }
     setErrorMessage('');
   }, []);
 
-  // Handle response from the /resume endpoint
   const handleResumeComplete = useCallback((data) => {
     setFinalProposal(data.final_proposal_markdown || '');
+    setEmailDraft(data.outreach_email_draft || '');
     setAppState(STATES.COMPLETED);
     setBlueprintPayload([]);
     setErrorMessage('');
   }, []);
 
-  // Handle errors from any network call
   const handleError = useCallback((message) => {
     setErrorMessage(message);
     setAppState(STATES.ERROR);
   }, []);
 
-  // Reset the entire workflow to start fresh
   const handleReset = useCallback(() => {
     setAppState(STATES.IDLE);
     setThreadId(null);
     setBlueprintPayload([]);
     setMatchedSkus([]);
     setFinalProposal('');
+    setEmailDraft('');
     setErrorMessage('');
     setVolatilityMultiplier(1.0);
   }, []);
 
-  // Load a historical proposal into the viewer
   const handleSelectProposal = useCallback((proposal) => {
     setThreadId(proposal.thread_id);
     setFinalProposal(proposal.final_markdown);
@@ -136,9 +136,11 @@ export default function App() {
     setErrorMessage('');
     setBlueprintPayload([]);
     setMatchedSkus([]);
+    setEmailDraft('');
+    setActiveTab('workspace');
   }, []);
 
-  // ── Auth Loading State ──
+  // ── Auth Loading ──
   if (authLoading) {
     return (
       <div style={{
@@ -150,14 +152,12 @@ export default function App() {
     );
   }
 
-  // ── Login Gate ── If no session, show the login page
-  if (!session) {
-    return <LoginPage />;
+  if (!authUser) {
+    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // Extract user info from the session
-  const userEmail = session.user?.email || '';
-  const sessionToken = session.access_token || '';
+  const userEmail = authUser.email || '';
+  const sessionToken = authUser.token || '';
 
   return (
     <div className="app-layout">
@@ -167,6 +167,23 @@ export default function App() {
           <div className="app-header__title-icon">⚡</div>
           FMCG — RFP Bid Intelligence Platform
         </div>
+
+        {/* Tab Navigation */}
+        <nav className="app-header__tabs">
+          <button
+            className={`app-header__tab ${activeTab === 'workspace' ? 'app-header__tab--active' : ''}`}
+            onClick={() => setActiveTab('workspace')}
+          >
+            🏭 Workspace
+          </button>
+          <button
+            className={`app-header__tab ${activeTab === 'analytics' ? 'app-header__tab--active' : ''}`}
+            onClick={() => setActiveTab('analytics')}
+          >
+            📊 Analytics
+          </button>
+        </nav>
+
         <div className="app-header__status">
           <div className={`status-dot ${statusDotClass[appState]}`} />
           <span>{statusLabels[appState]}</span>
@@ -176,9 +193,7 @@ export default function App() {
             </span>
           )}
           <span style={{ color: 'var(--zinc-700)', margin: '0 8px' }}>│</span>
-          <span style={{ color: 'var(--zinc-400)', fontSize: '0.78rem' }}>
-            {userEmail}
-          </span>
+          <span style={{ color: 'var(--zinc-400)', fontSize: '0.78rem' }}>{userEmail}</span>
           <button
             className="btn btn--ghost"
             style={{ padding: '4px 10px', fontSize: '0.72rem', marginLeft: '6px' }}
@@ -191,52 +206,48 @@ export default function App() {
 
       {/* ═══ Sidebar ═══ */}
       <aside className="sidebar">
-        {/* Proposal History (ChatGPT-style) */}
         <HistorySidebar
-          session={session}
+          token={sessionToken}
           onSelectProposal={handleSelectProposal}
           onNewAnalysis={handleReset}
           activeThreadId={threadId}
         />
 
-        {/* Volatility Slider Control */}
         <VolatilitySlider
           value={volatilityMultiplier}
           onChange={setVolatilityMultiplier}
           disabled={appState === STATES.PROCESSING}
         />
 
-        {/* System Info Panel */}
+        {/* Tender Scout Widget */}
+        <ScoutSettings />
+
+        {/* System Info */}
         <div className="sidebar__section">
           <div className="sidebar__section-title">
             <span>⚙️</span>
             System Configuration
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.8rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--zinc-500)' }}>Model</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--zinc-300)' }}>llama-3.3-70b</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--zinc-500)' }}>Engine</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--zinc-300)' }}>Groq Cloud</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--zinc-500)' }}>Orchestrator</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--zinc-300)' }}>LangGraph</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--zinc-500)' }}>Checkpointer</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--zinc-300)' }}>PostgreSQL</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--zinc-500)' }}>Agents</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-emerald)' }}>7 Nodes</span>
-            </div>
+            {[
+              ['Model', 'llama-3.3-70b'],
+              ['Engine', 'Groq Cloud'],
+              ['Orchestrator', 'LangGraph'],
+              ['Checkpointer', 'PostgreSQL'],
+              ['Catalog', '45 Products'],
+              ['Agents', '8 Nodes'],
+              ['RAG', 'FAISS + Gemini'],
+              ['Email', 'Resend API'],
+            ].map(([label, value]) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--zinc-500)' }}>{label}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--zinc-300)' }}>{value}</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Workflow Pipeline Visualization */}
+        {/* Pipeline Status */}
         <div className="sidebar__section">
           <div className="sidebar__section-title">
             <span>🔄</span>
@@ -251,10 +262,10 @@ export default function App() {
               { name: 'Human Review', stage: 5 },
               { name: 'Pricing Engine', stage: 6 },
               { name: 'Output Compiler', stage: 7 },
+              { name: 'Email Draft', stage: 8 },
             ].map(({ name, stage }) => {
               let stateClass = '';
               let icon = '○';
-
               if (appState === STATES.COMPLETED) {
                 stateClass = 'processing-stage__item--done';
                 icon = '✓';
@@ -265,7 +276,6 @@ export default function App() {
                 stateClass = 'processing-stage__item--active';
                 icon = '◉';
               }
-
               return (
                 <div key={stage} className={`processing-stage__item ${stateClass}`}>
                   <span>{icon}</span>
@@ -279,75 +289,81 @@ export default function App() {
 
       {/* ═══ Main Panel ═══ */}
       <main className="main-panel">
-        {/* Thread info bar (shown when a thread is active) */}
-        {threadId && (
-          <div className="thread-info">
-            <span className="thread-info__label">Session</span>
-            <span className="thread-info__value">{threadId}</span>
-            <span className="thread-info__label" style={{ marginLeft: 'auto' }}>
-              State: {appState}
-            </span>
-          </div>
-        )}
+        {/* ─── Workspace Tab ─── */}
+        {activeTab === 'workspace' && (
+          <>
+            {threadId && (
+              <div className="thread-info">
+                <span className="thread-info__label">Session</span>
+                <span className="thread-info__value">{threadId}</span>
+                <span className="thread-info__label" style={{ marginLeft: 'auto' }}>State: {appState}</span>
+              </div>
+            )}
 
-        {/* Error Banner */}
-        {appState === STATES.ERROR && errorMessage && (
-          <div style={{
-            padding: '14px 20px',
-            background: 'var(--accent-red-glow)',
-            border: '1px solid rgba(239,68,68,0.3)',
-            borderRadius: 'var(--radius-md)',
-            color: 'var(--accent-red)',
-            fontSize: '0.85rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <span>⚠ {errorMessage}</span>
-            <button className="btn btn--ghost" style={{ padding: '4px 12px', fontSize: '0.78rem' }} onClick={handleReset}>
-              Dismiss
-            </button>
-          </div>
-        )}
+            {appState === STATES.ERROR && errorMessage && (
+              <div style={{
+                padding: '14px 20px',
+                background: 'var(--accent-red-glow)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--accent-red)',
+                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+                <span>⚠ {errorMessage}</span>
+                <button className="btn btn--ghost" style={{ padding: '4px 12px', fontSize: '0.78rem' }} onClick={handleReset}>Dismiss</button>
+              </div>
+            )}
 
-        {/* ── Conditional Content Based on State ── */}
+            {(appState === STATES.IDLE || appState === STATES.ERROR) && (
+              <BidManager
+                onStartResponse={handleStartResponse}
+                onError={handleError}
+                volatilityMultiplier={volatilityMultiplier}
+              />
+            )}
 
-        {/* IDLE or ERROR → Show the file upload interface */}
-        {(appState === STATES.IDLE || appState === STATES.ERROR) && (
-          <BidManager
-            onStartResponse={handleStartResponse}
-            onError={handleError}
-            volatilityMultiplier={volatilityMultiplier}
-          />
-        )}
+            {appState === STATES.COMPLETED && (
+              <>
+                <ProposalViewer
+                  markdown={finalProposal}
+                  threadId={threadId}
+                  onReset={handleReset}
+                />
+                {/* Outreach Email Draft */}
+                <OutreachEmailViewer
+                  emailDraft={emailDraft}
+                  threadId={threadId}
+                />
+              </>
+            )}
 
-        {/* COMPLETED → Show the final proposal document */}
-        {appState === STATES.COMPLETED && (
-          <ProposalViewer
-            markdown={finalProposal}
-            threadId={threadId}
-            onReset={handleReset}
-          />
-        )}
-
-        {/* IDLE with no thread → Show empty state welcome */}
-        {appState === STATES.IDLE && !threadId && (
-          <div className="card">
-            <div className="card__body">
-              <div className="empty-state">
-                <div className="empty-state__icon">🏭</div>
-                <div className="empty-state__title">Welcome to the RFP Bid Intelligence Platform</div>
-                <div className="empty-state__text">
-                  Upload a Request for Proposal document to start the multi-agent analysis pipeline. 
-                  The system will extract requirements, match SKUs, and generate a complete bid proposal.
+            {appState === STATES.IDLE && !threadId && (
+              <div className="card">
+                <div className="card__body">
+                  <div className="empty-state">
+                    <div className="empty-state__icon">🏭</div>
+                    <div className="empty-state__title">Welcome to the RFP Bid Intelligence Platform</div>
+                    <div className="empty-state__text">
+                      Upload a Request for Proposal document to start the multi-agent analysis pipeline.
+                      The system will extract requirements, match SKUs from the product catalog, generate a complete bid proposal, and draft a professional outreach email.
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
+            )}
+          </>
+        )}
+
+        {/* ─── Analytics Tab ─── */}
+        {activeTab === 'analytics' && (
+          <AnalyticsDashboard token={sessionToken} />
         )}
       </main>
 
-      {/* ═══ MTO Review Modal (shown when workflow is paused) ═══ */}
+      {/* ═══ MTO Review Modal ═══ */}
       {appState === STATES.PAUSED && (
         <MtoModal
           threadId={threadId}
@@ -361,6 +377,9 @@ export default function App() {
           sessionToken={sessionToken}
         />
       )}
+
+      {/* ═══ RAG Chat Drawer ═══ */}
+      <ChatPanel threadId={threadId} token={sessionToken} />
     </div>
   );
 }

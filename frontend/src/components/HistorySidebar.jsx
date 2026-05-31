@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
 
 /**
  * HistorySidebar — ChatGPT-Style Proposal History Navigation
@@ -8,18 +7,18 @@ import { supabase } from '../supabaseClient';
  * Renders clickable items showing project name + date.
  * On click, loads the saved final_markdown into the ProposalViewer.
  */
-export default function HistorySidebar({ session, onSelectProposal, onNewAnalysis, activeThreadId }) {
+export default function HistorySidebar({ token, onSelectProposal, onNewAnalysis, activeThreadId }) {
   const [proposals, setProposals] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Fetch proposal history on mount and when session changes
   const fetchHistory = useCallback(async () => {
-    if (!session?.access_token) return;
+    if (!token) return;
     setIsLoading(true);
     try {
       const response = await fetch('/api/history', {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
       if (response.ok) {
@@ -31,7 +30,7 @@ export default function HistorySidebar({ session, onSelectProposal, onNewAnalysi
     } finally {
       setIsLoading(false);
     }
-  }, [session]);
+  }, [token]);
 
   useEffect(() => {
     fetchHistory();

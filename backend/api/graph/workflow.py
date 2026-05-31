@@ -108,42 +108,138 @@ RFP DOCUMENT TEXT:
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # NODE 2: Technical Matching Agent
-# Simulates vector catalog search and applies the >600V MTO threshold rule.
-# For each requirement, produces a SKURecommendation with match percentage.
-# Items exceeding 600V are forced to 65% match and flagged as custom MTO.
+# Queries the `products` table in Supabase and computes a weighted similarity
+# score for each RFP requirement against every catalog product.
+# Scoring weights: conductor material (25%), insulation type (25%),
+# voltage rating (25%), core count (25%).
+# Products scoring ≥75% are standard matches; below 75% are flagged as MTO.
 # ═══════════════════════════════════════════════════════════════════════════════
+
+# MTO threshold — products below this match score require custom manufacturing
+MTO_MATCH_THRESHOLD = 75.0
+
+
+def _compute_match_score(requirement: dict, product: dict) -> float:
+    """Compute a weighted similarity score (0-100) between a requirement and a catalog product.
+
+    Scoring breakdown:
+      - Conductor material: 25% (exact match = 100%, mismatch = 0%)
+      - Insulation type:    25% (exact = 100%, XLPE↔PVC partial = 40%, else 0%)
+      - Voltage rating:     25% (product ≥ requirement = 100%, below = proportional)
+      - Core count:         25% (exact = 100%, ±1 = 50%, else 0%)
+    """
+    score = 0.0
+
+    # Conductor material (25%)
+    req_material = requirement.get("conductor_material", "").lower().strip()
+    prod_material = product.get("conductor_material", "").lower().strip()
+    if req_material == prod_material:
+        score += 25.0
+
+    # Insulation type (25%)
+    req_insulation = requirement.get("insulation_type", "").upper().strip()
+    prod_insulation = product.get("insulation_type", "").upper().strip()
+    if req_insulation == prod_insulation:
+        score += 25.0
+    elif {req_insulation, prod_insulation} == {"XLPE", "PVC"}:
+        # Partial match — same family but different performance tier
+        score += 10.0
+
+    # Voltage rating (25%)
+    req_voltage = float(requirement.get("voltage_rating", 0))
+    prod_voltage = float(product.get("voltage_rating", 0))
+    if prod_voltage >= req_voltage and req_voltage > 0:
+        score += 25.0
+    elif req_voltage > 0:
+        # Proportional score if product voltage is below requirement
+        ratio = prod_voltage / req_voltage
+        score += 25.0 * min(ratio, 1.0)
+
+    # Core count (25%)
+    req_cores = int(requirement.get("core_count", 1))
+    prod_cores = int(product.get("core_count", 1))
+    if req_cores == prod_cores:
+        score += 25.0
+    elif abs(req_cores - prod_cores) == 1:
+        score += 12.5
+
+    return round(score, 1)
+
+
+def _build_gap_notes(requirement: dict, product: dict, score: float) -> str:
+    """Generate human-readable gap analysis explaining the match delta."""
+    gaps = []
+
+    req_material = requirement.get("conductor_material", "").lower()
+    prod_material = product.get("conductor_material", "").lower()
+    if req_material != prod_material:
+        gaps.append(f"Material mismatch: requires {req_material}, catalog has {prod_material}")
+
+    req_insulation = requirement.get("insulation_type", "").upper()
+    prod_insulation = product.get("insulation_type", "").upper()
+    if req_insulation != prod_insulation:
+        gaps.append(f"Insulation mismatch: requires {req_insulation}, catalog has {prod_insulation}")
+
+    req_voltage = float(requirement.get("voltage_rating", 0))
+    prod_voltage = float(product.get("voltage_rating", 0))
+    if prod_voltage < req_voltage:
+        gaps.append(f"Voltage gap: requires {req_voltage:.0f}V, catalog max is {prod_voltage:.0f}V (delta: {req_voltage - prod_voltage:.0f}V)")
+
+    req_cores = int(requirement.get("core_count", 1))
+    prod_cores = int(product.get("core_count", 1))
+    if req_cores != prod_cores:
+        gaps.append(f"Core count: requires {req_cores}C, catalog has {prod_cores}C")
+
+    if not gaps:
+        return f"Direct catalog match ({score:.1f}% confidence). No modifications required."
+
+    return "; ".join(gaps) + f". Overall match: {score:.1f}%."
+
+
 def technical_matching_node(state: RFPState) -> dict:
-    """Match each requirement against the product catalog with voltage-based MTO logic."""
+    """Match each requirement against the real product catalog using weighted similarity scoring."""
+
+    # Step 1: Fetch the full product catalog from Supabase
+    catalog_result = supabase_client.table("products").select("*").execute()
+    catalog = catalog_result.data or []
+
+    if not catalog:
+        # Fallback if catalog is empty — should not happen after seeding
+        raise ValueError("Product catalog is empty. Run the migration/seed script first.")
 
     matched_skus: list[SKURecommendation] = []
 
     for requirement in state["extracted_requirements"]:
-        # Determine if this requirement exceeds the standard voltage threshold
-        voltage = requirement["voltage_rating"]
-        is_high_voltage = voltage > 600.0
+        best_score = 0.0
+        best_product = None
 
-        if is_high_voltage:
-            # Edge case: items requiring >600V get a 65% match and are flagged for custom MTO
-            # This forces the compliance router to route through blueprint generation
+        # Step 2: Score every catalog product against this requirement
+        for product in catalog:
+            score = _compute_match_score(requirement, product)
+            if score > best_score:
+                best_score = score
+                best_product = product
+
+        # Step 3: Build the SKU recommendation from the best match
+        if best_product:
+            is_mto = best_score < MTO_MATCH_THRESHOLD
+            gap_notes = _build_gap_notes(requirement, best_product, best_score)
+
             recommendation: SKURecommendation = {
-                "sku_id": f"SKU-{requirement['conductor_material'].upper()}-{requirement['insulation_type']}-{requirement['core_count']}C-CUSTOM",
-                "product_name": f"Custom {requirement['core_count']}-Core {requirement['conductor_material'].title()} {requirement['insulation_type']} Cable ({voltage:.0f}V)",
-                "spec_match_percentage": 65.0,
-                "is_custom_mto": True,
-                "gap_analysis_notes": (
-                    f"Standard catalog only covers up to 600V. "
-                    f"This requirement specifies {voltage:.0f}V, exceeding threshold by {voltage - 600.0:.0f}V. "
-                    f"Requires custom insulation extrusion modification to handle {voltage:.0f}V workload."
-                ),
+                "sku_id": best_product["sku_id"],
+                "product_name": best_product["product_name"],
+                "spec_match_percentage": best_score,
+                "is_custom_mto": is_mto,
+                "gap_analysis_notes": gap_notes,
             }
         else:
-            # Standard match: items within 600V get a 92.5% match from nearest catalog SKU
+            # No products in catalog at all — flag as full MTO
             recommendation: SKURecommendation = {
-                "sku_id": f"SKU-{requirement['conductor_material'].upper()}-{requirement['insulation_type']}-{requirement['core_count']}C-{voltage:.0f}V",
-                "product_name": f"Standard {requirement['core_count']}-Core {requirement['conductor_material'].title()} {requirement['insulation_type']} Cable ({voltage:.0f}V)",
-                "spec_match_percentage": 92.5,
-                "is_custom_mto": False,
-                "gap_analysis_notes": "Direct catalog match within standard voltage range. No modifications required.",
+                "sku_id": "MTO-CUSTOM-BUILD",
+                "product_name": f"Custom {requirement['core_count']}C {requirement['conductor_material'].title()} {requirement['insulation_type']} Cable",
+                "spec_match_percentage": 0.0,
+                "is_custom_mto": True,
+                "gap_analysis_notes": "No matching products found in catalog. Full custom manufacturing required.",
             }
 
         matched_skus.append(recommendation)
@@ -445,19 +541,68 @@ def output_compiler_node(state: RFPState) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# NODE 8: Outreach Email Draft Generator
+# Uses ChatGroq to draft a professional bid submission email summarizing
+# the proposal's competitive advantages: pricing, compliance, delivery.
+# ═══════════════════════════════════════════════════════════════════════════════
+def email_draft_node(state: RFPState) -> dict:
+    """Generate a professional outreach email draft for client submission."""
+
+    metadata = state.get("metadata", {})
+    client_name = metadata.get("client_name", "Valued Client")
+    project_name = metadata.get("project_name", "Infrastructure Project")
+    matched_skus = state.get("matched_skus", [])
+    pricing = state.get("pricing_breakdown", [])
+
+    # Count standard vs MTO items
+    total_items = len(matched_skus)
+    mto_items = sum(1 for s in matched_skus if s.get("is_custom_mto"))
+    std_items = total_items - mto_items
+
+    # Calculate total value
+    total_value = sum(p.get("adjusted_price", p.get("base_price", 0)) for p in pricing)
+
+    email_prompt = f"""You are a senior sales executive at FMCG Industrial Solutions, a leading electrical cable manufacturer.
+Draft a professional, persuasive bid submission email for the following RFP response.
+
+CLIENT: {client_name}
+PROJECT: {project_name}
+ITEMS QUOTED: {total_items} line items ({std_items} standard catalog matches, {mto_items} custom MTO)
+ESTIMATED VALUE: INR {total_value:,.2f}
+COMPLIANCE: IEC 60502 / IS 7098 certified
+DELIVERY: Standard items 3-14 days, MTO items 14-25 days
+
+The email should:
+1. Open with a professional greeting referencing the project name
+2. Highlight our competitive advantages (direct manufacturer pricing, certified products, fast delivery)
+3. Summarize the bid (number of items, compliance standards, estimated value)
+4. Mention our ability to handle both standard and custom Make-to-Order requirements
+5. Close with a call to action for a technical review meeting
+6. Include a professional signature block for "FMCG Industrial Solutions"
+
+Write the email in plain text format suitable for business communication. Keep it concise (250-350 words)."""
+
+    response = llm.invoke(email_prompt)
+    email_draft = response.content.strip()
+
+    return {"outreach_email_draft": email_draft}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # GRAPH ASSEMBLY — Wire all nodes and edges into a compiled StateGraph
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Initialize the state graph builder with our global state schema
 graph_builder = StateGraph(RFPState)
 
-# Register all 7 nodes (including the human review interrupt node)
+# Register all 8 nodes (including human review interrupt and email draft)
 graph_builder.add_node("sales_discovery", sales_discovery_node)
 graph_builder.add_node("technical_matching", technical_matching_node)
 graph_builder.add_node("generate_mto_blueprint", generate_mto_blueprint_node)
 graph_builder.add_node("await_human_review", await_human_review_node)
 graph_builder.add_node("pricing_estimation", pricing_estimation_node)
 graph_builder.add_node("output_compiler", output_compiler_node)
+graph_builder.add_node("email_draft", email_draft_node)
 
 # Wire the linear edge from START to the first processing node
 graph_builder.add_edge(START, "sales_discovery")
@@ -480,9 +625,10 @@ graph_builder.add_conditional_edges(
 graph_builder.add_edge("generate_mto_blueprint", "await_human_review")
 graph_builder.add_edge("await_human_review", "pricing_estimation")
 
-# Wire the final path: pricing → output compiler → END
+# Wire the final path: pricing → output compiler → email draft → END
 graph_builder.add_edge("pricing_estimation", "output_compiler")
-graph_builder.add_edge("output_compiler", END)
+graph_builder.add_edge("output_compiler", "email_draft")
+graph_builder.add_edge("email_draft", END)
 
 
 # ─── Compile with persistent PostgreSQL checkpointer ───
