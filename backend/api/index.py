@@ -178,6 +178,15 @@ async def start_rfp_processing(
     # Step 3: Configure the LangGraph thread for state persistence
     config = {"configurable": {"thread_id": thread_id}}
 
+    # Step 3.5: Auto-index the RFP text for RAG chatbot retrieval
+    # This builds a FAISS index from the document + product catalog so the
+    # chatbot can answer questions about the uploaded RFP immediately.
+    try:
+        rag_engine.build_index_from_text(thread_id, raw_rfp_text)
+    except Exception as e:
+        import logging
+        logging.warning(f"RAG indexing failed (non-fatal): {e}")
+
     # Step 4: Initialize the graph state with extracted text and default values
     initial_state = {
         "raw_rfp_content": raw_rfp_text,
