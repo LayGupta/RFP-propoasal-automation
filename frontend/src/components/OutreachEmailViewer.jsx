@@ -1,23 +1,29 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 /**
  * OutreachEmailViewer — Auto-Generated Bid Submission Email
  *
  * Displays the AI-drafted outreach email with:
- *  - Editable recipient field
- *  - Email body preview
- *  - "Send to Client" button via Resend API
+ *  - Editable recipient, subject, and body fields
+ *  - "Send to Client" button — only sends when user manually clicks
+ *  - "Reset to Original" to restore AI draft
  *  - Success/error toast feedback
  */
 export default function OutreachEmailViewer({ emailDraft, threadId }) {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [subject, setSubject] = useState('FMCG Industrial Solutions — Bid Submission');
+  const [editableBody, setEditableBody] = useState(emailDraft || '');
   const [isSending, setIsSending] = useState(false);
-  const [sendStatus, setSendStatus] = useState(null); // 'success' | 'error' | null
+  const [sendStatus, setSendStatus] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
 
+  // Sync body when emailDraft prop changes (e.g., new proposal)
+  useEffect(() => {
+    if (emailDraft) setEditableBody(emailDraft);
+  }, [emailDraft]);
+
   const handleSend = useCallback(async () => {
-    if (!recipientEmail.trim() || !emailDraft) return;
+    if (!recipientEmail.trim() || !editableBody.trim()) return;
 
     setIsSending(true);
     setSendStatus(null);
@@ -28,7 +34,7 @@ export default function OutreachEmailViewer({ emailDraft, threadId }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           recipient_email: recipientEmail.trim(),
-          email_body: emailDraft,
+          email_body: editableBody.trim(),
           subject: subject,
         }),
       });
@@ -47,7 +53,7 @@ export default function OutreachEmailViewer({ emailDraft, threadId }) {
     } finally {
       setIsSending(false);
     }
-  }, [recipientEmail, emailDraft, subject]);
+  }, [recipientEmail, editableBody, subject]);
 
   if (!emailDraft) return null;
 
@@ -59,6 +65,7 @@ export default function OutreachEmailViewer({ emailDraft, threadId }) {
             <span style={{ marginRight: '8px' }}>📧</span>
             Auto-Generated Outreach Email
           </h3>
+          <span className="card__badge card__badge--blue">REVIEW & EDIT BEFORE SENDING</span>
         </div>
         <div className="card__body">
           {/* Status Toast */}
@@ -96,28 +103,46 @@ export default function OutreachEmailViewer({ emailDraft, threadId }) {
             </div>
           </div>
 
-          {/* Email Body Preview */}
-          <div className="outreach-body">
-            <pre className="outreach-body__text">{emailDraft}</pre>
+          {/* Editable Email Body */}
+          <div className="form-group">
+            <label className="form-label">Email Body (editable)</label>
+            <textarea
+              className="form-input outreach-textarea"
+              value={editableBody}
+              onChange={e => setEditableBody(e.target.value)}
+              rows={14}
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.84rem',
+                lineHeight: '1.7',
+                resize: 'vertical',
+                minHeight: '200px',
+              }}
+            />
           </div>
 
-          {/* Send Button */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
-            <button
-              className="btn btn--primary"
-              onClick={handleSend}
-              disabled={!recipientEmail.trim() || isSending}
-              style={{ padding: '10px 28px' }}
-            >
-              {isSending ? (
-                <>
-                  <span className="processing-spinner" style={{ width: 14, height: 14, borderWidth: 2, margin: 0 }} />
-                  Sending...
-                </>
-              ) : (
-                '📤 Send to Client'
-              )}
-            </button>
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+            <span style={{ fontSize: '0.73rem', color: 'var(--zinc-600)' }}>
+              Review and edit the email above, then click Send to Client when ready.
+            </span>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                className="btn btn--ghost"
+                onClick={() => setEditableBody(emailDraft)}
+                style={{ padding: '8px 16px', fontSize: '0.8rem' }}
+              >
+                Reset to Original
+              </button>
+              <button
+                className="btn btn--primary"
+                onClick={handleSend}
+                disabled={!recipientEmail.trim() || !editableBody.trim() || isSending}
+                style={{ padding: '10px 28px' }}
+              >
+                {isSending ? 'Sending...' : 'Send to Client'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

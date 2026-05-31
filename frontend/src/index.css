@@ -1525,3 +1525,24 @@ body {
   color: var(--accent-red);
   border: 1px solid rgba(239, 68, 68, 0.2);
 }
+
+.outreach-textarea {
+  width: 100%;
+  background: var(--zinc-950);
+  border: 1px solid var(--zinc-800);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  color: var(--zinc-300);
+  font-family: var(--font-body);
+  font-size: 0.84rem;
+  line-height: 1.7;
+  resize: vertical;
+  min-height: 200px;
+  transition: border-color 0.2s ease;
+}
+
+.outreach-textarea:focus {
+  border-color: var(--accent-blue);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-blue-glow);
+}

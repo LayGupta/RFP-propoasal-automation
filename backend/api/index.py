@@ -73,11 +73,13 @@ class ResumeRequest(BaseModel):
 
 
 class StartResponse(BaseModel):
-    """Response from the /start endpoint when the workflow pauses for human review."""
-    status: str = Field(..., description="Workflow status — always 'PAUSED_FOR_HUMAN_REVIEW'")
+    """Response from the /start endpoint — either paused for review or fully completed."""
+    status: str = Field(..., description="Workflow status")
     thread_id: str = Field(..., description="Thread identifier for resuming this workflow")
     blueprint_payload: list[str] = Field(default_factory=list, description="MTO blueprint markdown documents for review")
     matched_skus: list[dict] = Field(default_factory=list, description="All matched SKU recommendations")
+    final_proposal_markdown: Optional[str] = Field(None, description="Completed proposal (only when status=COMPLETED_NO_MTO)")
+    outreach_email_draft: Optional[str] = Field(None, description="Auto-generated email draft (only when status=COMPLETED_NO_MTO)")
 
 
 class FinalResponse(BaseModel):
@@ -195,6 +197,7 @@ async def start_rfp_processing(
     blueprint_payload: list[str] = []
     matched_skus_data: list[dict] = []
     final_markdown: str = ""
+    email_draft: str = ""
 
     for event in rfp_workflow.stream(initial_state, config=config):
         # Check if the graph has interrupted at the human review node
@@ -228,6 +231,8 @@ async def start_rfp_processing(
             thread_id=thread_id,
             blueprint_payload=[],
             matched_skus=matched_skus_data,
+            final_proposal_markdown=final_markdown,
+            outreach_email_draft=email_draft,
         )
 
 
@@ -259,11 +264,15 @@ def resume_rfp_processing(request: ResumeRequest) -> FinalResponse:
     # Step 3: Resume the workflow by passing Command(resume=...) instead of initial state
     # This wakes the graph from the interrupt point and continues downstream nodes
     final_markdown: str = ""
+    email_draft: str = ""
 
     for event in rfp_workflow.stream(Command(resume=resume_value), config=config):
         # Capture the final compiled proposal from the output compiler node
         if "output_compiler" in event:
             final_markdown = event["output_compiler"].get("final_proposal_markdown", "")
+        # Capture the email draft from the email_draft node
+        if "email_draft" in event:
+            email_draft = event["email_draft"].get("outreach_email_draft", "")
 
     # Step 4: Validate that we received a compiled output
     if not final_markdown:
@@ -276,6 +285,7 @@ def resume_rfp_processing(request: ResumeRequest) -> FinalResponse:
         status="COMPLETED",
         thread_id=request.thread_id,
         final_proposal_markdown=final_markdown,
+        outreach_email_draft=email_draft,
     )
 
 
