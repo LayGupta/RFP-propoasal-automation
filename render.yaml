@@ -1,0 +1,45 @@
+# render.yaml — Render Blueprint (Infrastructure as Code)
+# Deploy with: Dashboard → New → Blueprint → Connect this repo
+# Docs: https://docs.render.com/blueprint-spec
+
+services:
+  - type: web
+    name: fmcg-rfp-backend
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install .
+    startCommand: bash start.sh
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: ALERT_EMAIL
+        sync: false
+      - key: SCOUT_QUERY
+        value: "1100V XLPE cable tender RFP India"
+      - key: ENV
+        value: production
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: FRONTEND_URL
+        sync: false

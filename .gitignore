@@ -31,5 +31,7 @@ frontend/dist/
 # ─── uv lockfile (large, auto-generated) ───
 backend/uv.lock
 
-# ─── Test artifacts ───
+# ─── Test artifacts & generated files ───
 backend/test_rfp_sample.txt
+backend/test_rfp_mto_trigger.txt
+RFP_Proposal_*.txt
