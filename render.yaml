@@ -9,7 +9,7 @@ services:
     region: oregon
     plan: free
     rootDir: backend
-    buildCommand: pip install .
+    buildCommand: pip install --upgrade pip && pip install .
     startCommand: bash start.sh
     healthCheckPath: /api/health
     envVars:

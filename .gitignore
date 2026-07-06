@@ -27,6 +27,7 @@ Thumbs.db
 
 # ─── Build Outputs ───
 frontend/dist/
+frontend/.vercel/
 
 # ─── uv lockfile (large, auto-generated) ───
 backend/uv.lock

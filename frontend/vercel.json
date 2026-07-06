@@ -1,11 +1,12 @@
 {
   "version": 2,
+  "framework": null,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://fmcg-backend.onrender.com/api/$1"
+      "destination": "https://fmcg-rfp-backend.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",
