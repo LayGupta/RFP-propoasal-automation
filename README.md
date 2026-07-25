@@ -75,7 +75,7 @@ Beyond proposal generation, the platform includes an AI chatbot for querying doc
 - **Tavily deep web search** — crawls tender portals (tendersontime.com, GeM, govt sites)
 - **LLM structuring** — Llama 3.3 extracts title, authority, summary, URL from raw results
 - **Deduplication** — same tender found via multiple queries appears once
-- **Email alerts** — tabulated HTML email via Resend API
+- **Email alerts** — tabulated HTML email via Gmail SMTP
 - **Cron schedule** — daily at 6:00 AM IST via APScheduler
 - **Collapsible UI** — minimize/expand toggle in sidebar
 
@@ -90,7 +90,7 @@ Beyond proposal generation, the platform includes an AI chatbot for querying doc
 - **Fully editable** — textarea for body, editable subject + recipient
 - **Manual send** — "Send to Client" button (never auto-sends)
 - **Reset to original** — restore AI draft after edits
-- **Resend API** integration
+- **Gmail SMTP** integration — uses Native Python smtplib with Gmail App Passwords
 
 ### 🔐 Authentication
 - **Custom JWT auth** — replaces Supabase Auth
@@ -160,7 +160,7 @@ Beyond proposal generation, the platform includes an AI chatbot for querying doc
    │ users    │     │(LangGraph│     │ • Groq Cloud  │
    │ products │     │  state)  │     │ • Gemini      │
    │ proposals│     │          │     │ • Tavily      │
-   │scout_logs│     │          │     │ • Resend      │
+   │scout_logs│     │          │     │ • Gmail SMTP  │
    └──────────┘     └──────────┘     └──────────────┘
 ```
 
@@ -182,7 +182,7 @@ Beyond proposal generation, the platform includes an AI chatbot for querying doc
 | **Checkpointer** | LangGraph PostgresSaver | Persistent workflow state across restarts |
 | **Auth** | Custom JWT (PyJWT + bcrypt) | HS256 token signing, 72h expiry |
 | **Search** | Tavily API | Deep web search for tender scouting |
-| **Email** | Resend API | Transactional emails (outreach + alerts) |
+| **Email** | Gmail SMTP | Transactional emails (outreach + alerts) via smtplib |
 | **Scheduler** | APScheduler | Daily cron job for tender scouting |
 | **PDF Parsing** | pdfplumber | Server-side PDF text extraction |
 | **DOCX Parsing** | python-docx | Server-side DOCX text extraction |
@@ -257,7 +257,7 @@ FMCG/
 - **Node.js 18+**
 - **uv** (Python package manager) — `pip install uv`
 - **Supabase** account with a project
-- API keys: Groq, Gemini, Tavily, Resend
+- API keys: Groq, Gemini, Tavily, Gmail App Password
 
 ### 1. Clone the Repository
 
@@ -318,7 +318,8 @@ Create a `.env` file in the project root with the following variables:
 | `DATABASE_URL` | Direct PostgreSQL connection string | ✅ |
 | `TAVILY_API_KEY` | Tavily API key for web search | ✅ |
 | `JWT_SECRET` | Secret key for signing JWT tokens | ✅ |
-| `RESEND_API_KEY` | Resend API key for transactional emails | ✅ |
+| `SMTP_USER` | Gmail account email address | ✅ |
+| `SMTP_PASSWORD` | Gmail 16-character App Password | ✅ |
 | `ALERT_EMAIL` | Email address for scout alert notifications | ✅ |
 | `SCOUT_QUERY` | Default scout search query (overridden by inventory scan) | ❌ |
 | `ENV` | Environment mode (`development` / `production`) | ❌ |
@@ -439,7 +440,7 @@ CREATE TABLE IF NOT EXISTS scout_logs (
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `POST` | `/api/send-outreach` | — | Send edited outreach email via Resend |
+| `POST` | `/api/send-outreach` | — | Send edited outreach email via Gmail SMTP |
 | `GET` | `/api/health` | — | Health check endpoint |
 
 ---
@@ -556,7 +557,7 @@ The system auto-generates a professional bid submission email after proposal com
 - **Fully editable** — body, subject, and recipient are all editable
 - **Manual send only** — email is NEVER sent automatically; user must review, edit, and click "Send to Client"
 - **Reset to original** — one-click restore of the AI draft
-- **Resend API** — transactional email delivery with tracking
+- **Gmail SMTP** — transactional email delivery via Python smtplib
 
 ---
 
