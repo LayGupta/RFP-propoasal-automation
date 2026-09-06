@@ -12,7 +12,7 @@ router = APIRouter(tags=["scout"])
 
 @router.post("/api/scout-tenders")
 async def scout_tenders(request: ScoutRequest) -> dict:
-    from langchain_groq import ChatGroq
+    from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_community.tools.tavily_search import TavilySearchResults
 
     tavily_key = os.environ.get("TAVILY_API_KEY")
@@ -23,7 +23,7 @@ async def scout_tenders(request: ScoutRequest) -> dict:
         search_tool = TavilySearchResults(max_results=8, search_depth="advanced")
         raw_results = search_tool.invoke(request.query)
 
-        scout_llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
+        scout_llm = ChatGoogleGenerativeAI(model="gemini-3.6-flash", temperature=0)
         prompt = f"""You are a procurement intelligence analyst. Analyze the following web search results about infrastructure tenders and RFPs.
 
 Search Results:
@@ -40,7 +40,10 @@ Return ONLY the raw JSON array, no markdown formatting or code blocks."""
 
         response = scout_llm.invoke(prompt)
         try:
-            content = response.content.strip()
+            raw_content = response.content
+            content = (raw_content if isinstance(raw_content, str) else "".join(
+                p.get("text", "") if isinstance(p, dict) else str(p) for p in raw_content
+            )).strip()
             if content.startswith("```"):
                 content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
             opportunities = json.loads(content)

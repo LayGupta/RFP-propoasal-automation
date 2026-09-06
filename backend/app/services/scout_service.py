@@ -95,7 +95,7 @@ def _build_alert_html(opportunities: list[dict], categories: list[str]) -> str:
 
 def scout_and_alert() -> dict:
     """Execute a full inventory-wide tender scout and send email alert."""
-    from langchain_groq import ChatGroq
+    from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_community.tools.tavily_search import TavilySearchResults
 
     s = get_settings()
@@ -108,7 +108,7 @@ def scout_and_alert() -> dict:
 
     try:
         search_tool = TavilySearchResults(max_results=5, search_depth="advanced")
-        scout_llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
+        scout_llm = ChatGoogleGenerativeAI(model="gemini-3.6-flash", temperature=0)
 
         for qc in query_configs:
             query, category = qc["query"], qc["category"]
@@ -129,7 +129,10 @@ Extract and return a JSON array of tender opportunities. Each object must have:
 Return ONLY the raw JSON array. No explanation."""
 
                 response = scout_llm.invoke(prompt)
-                content = response.content.strip()
+                raw_content = response.content
+                content = (raw_content if isinstance(raw_content, str) else "".join(
+                    p.get("text", "") if isinstance(p, dict) else str(p) for p in raw_content
+                )).strip()
                 if content.startswith("```"):
                     content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
                 try:

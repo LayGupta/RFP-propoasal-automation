@@ -11,7 +11,7 @@ Graph Topology:
 """
 
 import json
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import interrupt, Command
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -20,9 +20,22 @@ from app.models.state import RFPState, RFPRequirement, SKURecommendation
 from app.core.database import supabase_client
 from app.core.config import get_settings
 
-llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
+llm = ChatGoogleGenerativeAI(model="gemini-3.6-flash", temperature=0)
 
 MTO_MATCH_THRESHOLD = 75.0
+
+
+def _extract_text(response) -> str:
+    """Safely extract text from an LLM response, handling both str and list content."""
+    content = response.content
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            part.get("text", "") if isinstance(part, dict) else str(part)
+            for part in content
+        )
+    return str(content)
 
 
 # ═══ NODE 1: Sales Discovery ═══
@@ -54,7 +67,7 @@ RFP DOCUMENT TEXT:
 {state["raw_rfp_content"]}"""
 
     response = llm.invoke(extraction_prompt)
-    raw_output = response.content.strip()
+    raw_output = _extract_text(response).strip()
     if raw_output.startswith("```"):
         raw_output = raw_output.split("\n", 1)[1]
     if raw_output.endswith("```"):
@@ -236,7 +249,7 @@ Generate a blueprint that includes:
 Format as clean markdown with headers. Be specific with numerical values where applicable."""
 
         response = llm.invoke(prompt)
-        full_blueprint = f"## MTO Blueprint — {requirement['line_item_id']} ({sku['sku_id']})\n\n{response.content.strip()}"
+        full_blueprint = f"## MTO Blueprint — {requirement['line_item_id']} ({sku['sku_id']})\n\n{_extract_text(response).strip()}"
         mto_blueprints.append(full_blueprint)
     return {"mto_blueprints": mto_blueprints}
 
@@ -388,7 +401,7 @@ The email should:
 Write in plain text format. Keep it concise (250-350 words)."""
 
     response = llm.invoke(prompt)
-    return {"outreach_email_draft": response.content.strip()}
+    return {"outreach_email_draft": _extract_text(response).strip()}
 
 
 # ═══ GRAPH ASSEMBLY ═══
@@ -413,22 +426,30 @@ graph_builder.add_edge("pricing_estimation", "output_compiler")
 graph_builder.add_edge("output_compiler", "email_draft")
 graph_builder.add_edge("email_draft", END)
 
-# ── Compile with PostgresSaver checkpointer ──
+# ── Compile with PostgresSaver checkpointer (Fallback to MemorySaver if offline) ──
 import psycopg
 from psycopg_pool import ConnectionPool
+from langgraph.checkpoint.memory import MemorySaver
 
 _db_url = get_settings().DATABASE_URL
 
-_setup_conn = psycopg.connect(_db_url, autocommit=True)
-_setup_checkpointer = PostgresSaver(_setup_conn)
-_setup_checkpointer.setup()
-_setup_conn.close()
+try:
+    if not _db_url:
+        raise ValueError("DATABASE_URL is not set")
+    _setup_conn = psycopg.connect(_db_url, autocommit=True)
+    _setup_checkpointer = PostgresSaver(_setup_conn)
+    _setup_checkpointer.setup()
+    _setup_conn.close()
 
-_connection_pool = ConnectionPool(
-    conninfo=_db_url,
-    max_size=5,
-    kwargs={"autocommit": True},
-)
-checkpointer = PostgresSaver(_connection_pool)
-rfp_workflow = graph_builder.compile(checkpointer=checkpointer)
+    _connection_pool = ConnectionPool(
+        conninfo=_db_url,
+        max_size=5,
+        kwargs={"autocommit": True},
+    )
+    checkpointer = PostgresSaver(_connection_pool)
+    rfp_workflow = graph_builder.compile(checkpointer=checkpointer)
+except Exception as e:
+    print(f"\n[WARNING] Database connection failed ({e}). Falling back to MemorySaver in-memory checkpointer.\n")
+    rfp_workflow = graph_builder.compile(checkpointer=MemorySaver())
+
 

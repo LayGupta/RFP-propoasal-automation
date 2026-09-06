@@ -4,7 +4,7 @@ engine.py — RAG Engine for Document QA Chatbot
 Google Gemini embeddings, FAISS vector store, ChatGroq for answer generation.
 """
 
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -30,7 +30,7 @@ def _get_embeddings():
 def _get_llm():
     global _llm
     if _llm is None:
-        _llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.1)
+        _llm = ChatGoogleGenerativeAI(model="gemini-3.6-flash", temperature=0.1)
     return _llm
 
 
@@ -94,7 +94,10 @@ def ask(question: str, thread_id: str | None = None) -> dict:
 
     llm = _get_llm()
     response = llm.invoke(full_prompt)
-    answer = response.content.strip()
+    raw_content = response.content
+    answer = (raw_content if isinstance(raw_content, str) else "".join(
+        p.get("text", "") if isinstance(p, dict) else str(p) for p in raw_content
+    )).strip()
 
     sources = [{"content": doc.page_content[:200], "source": doc.metadata.get("source", "unknown")} for doc in retrieved_docs]
     return {"answer": answer, "sources": sources, "on_topic": on_topic}
